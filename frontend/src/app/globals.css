@@ -12,6 +12,8 @@
   --destructive: #ef4444;
   --success: #22c55e;
   --warning: #eab308;
+  --accent-action: #E87B35;
+  --accent-action-hover: #D06A28;
 }
 
 @theme inline {
@@ -26,6 +28,8 @@
   --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-accent-action: var(--accent-action);
+  --color-accent-action-hover: var(--accent-action-hover);
   --font-sans: var(--font-inter);
   --font-serif: var(--font-instrument-serif);
   --font-handwritten: var(--font-caveat);

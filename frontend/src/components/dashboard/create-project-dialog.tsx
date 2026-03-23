@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { createProject } from "@/lib/api/projects";
 import { toast } from "sonner";
 
@@ -29,7 +27,10 @@ export function CreateProjectDialog({
 
     setLoading(true);
     try {
-      await createProject({ name: name.trim(), description: description.trim() || undefined });
+      await createProject({
+        name: name.trim(),
+        description: description.trim() || undefined,
+      });
       toast.success("Project created");
       setName("");
       setDescription("");
@@ -45,40 +46,35 @@ export function CreateProjectDialog({
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogTitle>New project</DialogTitle>
-      <DialogDescription>
-        Create a project to organize your feedback sessions.
-      </DialogDescription>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="project-name" className="block text-sm text-muted mb-1.5">
-            Name
-          </label>
-          <Input
-            id="project-name"
-            placeholder="My Product"
+          <label className="block text-xs text-muted mb-1">Project name</label>
+          <input
+            type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            required
+            placeholder="e.g., Mobile App Feedback"
+            className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted/50 outline-none focus:border-muted"
+            autoFocus
           />
         </div>
         <div>
-          <label htmlFor="project-desc" className="block text-sm text-muted mb-1.5">
+          <label className="block text-xs text-muted mb-1">
             Description (optional)
           </label>
-          <Textarea
-            id="project-desc"
-            placeholder="What this project is about..."
+          <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            placeholder="What is this project about?"
             rows={3}
+            className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted/50 outline-none focus:border-muted resize-none"
           />
         </div>
-        <div className="flex gap-3 justify-end">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={loading || !name.trim()}>
+          <Button type="submit" disabled={!name.trim() || loading}>
             {loading ? "Creating..." : "Create project"}
           </Button>
         </div>

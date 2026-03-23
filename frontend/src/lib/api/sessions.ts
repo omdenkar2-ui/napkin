@@ -98,3 +98,20 @@ export async function getExportPrd(
 ): Promise<{ prd_url: string; expires_in: string }> {
   return api.get(`/sessions/${sessionId}/exports/prd`);
 }
+
+export async function uploadFeedbackFile(
+  projectId: string,
+  file: File,
+): Promise<{ id: string; filename: string; items_extracted: number }> {
+  return api.upload("/feedback/upload", file, { project_id: projectId });
+}
+
+export async function pasteFeedback(
+  projectId: string,
+  texts: string[],
+): Promise<{ items_created: number }> {
+  return api.post("/feedback/paste", {
+    project_id: projectId,
+    texts,
+  });
+}

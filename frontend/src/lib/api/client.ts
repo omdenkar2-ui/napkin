@@ -43,6 +43,31 @@ async function request<T>(
   return response.json();
 }
 
+async function uploadFile<T>(
+  path: string,
+  file: File,
+  params?: Record<string, string>,
+): Promise<T> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const queryString = params
+    ? "?" + new URLSearchParams(params).toString()
+    : "";
+  const response = await fetch(`${API_BASE}/api/v1${path}${queryString}`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, error.detail || "Upload failed");
+  }
+
+  return response.json();
+}
+
 export const api = {
   get: <T>(path: string, options?: RequestOptions) =>
     request<T>(path, { ...options, method: "GET" }),
@@ -55,6 +80,9 @@ export const api = {
 
   delete: <T>(path: string, options?: RequestOptions) =>
     request<T>(path, { ...options, method: "DELETE" }),
+
+  upload: <T>(path: string, file: File, params?: Record<string, string>) =>
+    uploadFile<T>(path, file, params),
 };
 
 export { ApiError };

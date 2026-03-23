@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listProjects } from "@/lib/api/projects";
 import { ProjectCard } from "@/components/dashboard/project-card";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { listProjects } from "@/lib/api/projects";
 
 export default function DashboardPage() {
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false);
 
   const {
     data: projects,
@@ -23,15 +23,20 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif text-2xl text-foreground">Projects</h1>
+          <h1 className="font-serif text-2xl text-foreground">Dashboard</h1>
           <p className="text-sm text-muted mt-1">
             Manage your feedback analysis projects
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>New project</Button>
+        <Button onClick={() => setShowCreateProject(true)}>
+          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New project
+        </Button>
       </div>
 
       {isLoading ? (
@@ -58,7 +63,7 @@ export default function DashboardPage() {
           }
         />
       ) : projects && projects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -73,7 +78,7 @@ export default function DashboardPage() {
           title="No projects yet"
           description="Create your first project to start analyzing customer feedback."
           action={
-            <Button onClick={() => setShowCreate(true)}>
+            <Button onClick={() => setShowCreateProject(true)}>
               Create your first project
             </Button>
           }
@@ -81,8 +86,8 @@ export default function DashboardPage() {
       )}
 
       <CreateProjectDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
+        open={showCreateProject}
+        onClose={() => setShowCreateProject(false)}
         onCreated={() => refetch()}
       />
     </div>

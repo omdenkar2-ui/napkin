@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import type { HTMLAttributes } from "react";
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "success" | "warning" | "error" | "accent";
+  variant?: "default" | "success" | "warning" | "error" | "accent" | "critical" | "opportunity" | "insight";
 }
 
 export function Badge({
@@ -24,6 +24,12 @@ export function Badge({
             variant === "error",
           "bg-accent/20 text-accent-light border border-accent/30":
             variant === "accent",
+          "bg-red-500/20 text-red-400 border border-red-500/30 font-semibold uppercase tracking-wide":
+            variant === "critical",
+          "bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold uppercase tracking-wide":
+            variant === "opportunity",
+          "bg-zinc-500/20 text-zinc-400 border border-zinc-500/30 font-semibold uppercase tracking-wide":
+            variant === "insight",
         },
         className,
       )}
