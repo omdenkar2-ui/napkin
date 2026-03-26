@@ -10,6 +10,7 @@ from typing import Any
 
 import structlog
 
+from app.services.analytics import generate_session_analytics
 from app.services.export.prd_exporter import export_prd
 from app.services.export.tickets_exporter import export_tickets
 
@@ -102,6 +103,16 @@ async def run_export(state: dict) -> dict:
 
     exports: dict = {}
     errors: list[str] = []
+
+    # Analytics — always runs first; charts embedded in PDF + returned via API
+    try:
+        analytics = generate_session_analytics(state)
+        exports["analytics"] = analytics.to_dict()
+        logger.info("export.analytics_done", charts=len(analytics.charts))
+    except Exception as e:
+        logger.error("export.analytics_failed", error=str(e))
+        errors.append(f"analytics: {e!s}")
+        exports["analytics"] = {"charts": {}, "stats": {}, "errors": {str(e)}, "chart_count": 0}
 
     # Tickets — always runs, no external deps
     try:
