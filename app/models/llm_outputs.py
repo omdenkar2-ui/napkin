@@ -193,3 +193,67 @@ class CoverageReport(BaseModel):
     coverage_pct: float = 0.0
     missed_important_files: list[str] = Field(default_factory=list)
     needs_more_exploration: bool = False
+
+
+# ============================================================
+# PIPELINE V2 — Categorized Analysis Models
+# ============================================================
+
+class ClusterAnalysisV2(BaseModel):
+    """Rich analysis of a single feedback cluster."""
+    label: str = ""
+    pain_summary: str = ""
+    severity_score: float = 5.0
+    confidence: float = 0.5
+    evidence_quotes: list[str] = Field(default_factory=list)
+    affected_segments: list[str] = Field(default_factory=list)
+    recommended_action: str = ""
+
+
+class CriticalIssue(BaseModel):
+    title: str = ""
+    severity: float = 5.0
+    frequency: int = 0
+    description: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    affected_segments: list[str] = Field(default_factory=list)
+    recommended_action: str = ""
+
+
+class ValuableInsight(BaseModel):
+    title: str = ""
+    pattern_type: str = "gap"
+    description: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    business_implication: str = ""
+    confidence: float = 0.5
+
+
+class FutureOpportunity(BaseModel):
+    title: str = ""
+    description: str = ""
+    evidence_from_feedback: list[str] = Field(default_factory=list)
+    world_context: str = ""
+    potential_impact: str = ""
+    timeframe: str = "medium"
+
+
+class FeedbackAnalysis(BaseModel):
+    """Categorized analysis output — the core Napkin deliverable."""
+    critical_issues: list[CriticalIssue] = Field(default_factory=list)
+    valuable_insights: list[ValuableInsight] = Field(default_factory=list)
+    future_opportunities: list[FutureOpportunity] = Field(default_factory=list)
+    segments_found: list[str] = Field(default_factory=list)
+    contradictions: list[dict] = Field(default_factory=list)
+
+
+class StrategicContext(BaseModel):
+    """Inferred strategic context (replaces interactive 4Q flow)."""
+    q1_segment_jtbd: str = ""
+    q1_evidence: list[str] = Field(default_factory=list)
+    q2_smallest_proof: str = ""
+    q2_scope_notes: str = ""
+    q3_non_goals: list[str] = Field(default_factory=list)
+    q4_constraints: list[str] = Field(default_factory=list)
+    q4_risks: list[str] = Field(default_factory=list)
+    q4_dependencies: list[str] = Field(default_factory=list)

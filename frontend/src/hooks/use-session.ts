@@ -24,7 +24,8 @@ const STAGE_LABELS: Record<string, string> = {
   error: "Something went wrong",
 };
 
-const AUTO_SKIP_STAGES: SessionStage[] = ["four_questions", "spec_qa"];
+// Pipeline now runs automatically — no stages need skipping
+const AUTO_SKIP_STAGES: SessionStage[] = [];
 
 export function useSession(sessionId: string) {
   const [sending, setSending] = useState(false);

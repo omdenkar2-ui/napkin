@@ -109,7 +109,7 @@ class ProjectResponse(BaseModel):
 
 class FeedbackPaste(BaseModel):
     """Paste raw feedback text directly."""
-    texts: list[str] = Field(min_length=1, max_length=100)
+    texts: list[str] = Field(min_length=1, max_length=5000)
     source_label: str | None = None  # e.g. "intercom chat", "user interview"
     metadata: dict[str, Any] | None = None
 
