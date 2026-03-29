@@ -7,19 +7,52 @@ import { getOrCreateDefaultProject } from "@/lib/api/projects";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { PatternReport, PatternCluster } from "@/types/api";
 import Link from "next/link";
 
 function getSeverityVariant(
   score: number,
 ): "critical" | "opportunity" | "insight" {
-  if (score >= 0.7) return "critical";
-  if (score >= 0.4) return "opportunity";
+  if (score >= 7) return "critical";
+  if (score >= 4) return "opportunity";
   return "insight";
+}
+
+interface EnrichedPattern {
+  label: string;
+  pain_summary: string;
+  frequency: number;
+  severity_score: number;
+  confidence: number;
+  evidence_quotes: string[];
+  signal_ids: string[];
+  sessionId: string;
+  sessionCreatedAt: string;
+  sessionTitle: string | null;
+}
+
+function inferTeam(pattern: EnrichedPattern): string {
+  const text = (pattern.label + " " + pattern.pain_summary).toLowerCase();
+  if (text.match(/api|backend|server|database|query|slow|sync|rate.limit|webhook/)) return "Engineering";
+  if (text.match(/ui|button|screen|layout|design|navigate|modal|sidebar|dark.mode|contrast/)) return "Product & Design";
+  if (text.match(/report|export|csv|pdf|data|chart|analytics/)) return "Data";
+  if (text.match(/auth|login|permission|role|sso|saml|2fa|security|audit/)) return "Security";
+  if (text.match(/pricing|cost|tier|plan|discount|seat/)) return "Business";
+  if (text.match(/onboard|tutorial|wizard|welcome|getting.started/)) return "Growth";
+  return "Product";
+}
+
+function groupBy<T>(items: T[], keyFn: (item: T) => string): [string, T[]][] {
+  const groups: Record<string, T[]> = {};
+  for (const item of items) {
+    const key = keyFn(item);
+    (groups[key] ||= []).push(item);
+  }
+  return Object.entries(groups);
 }
 
 export default function InsightsPage() {
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [groupByMode, setGroupByMode] = useState<"month" | "team">("month");
 
   useEffect(() => {
     getOrCreateDefaultProject().then((p) => setProjectId(p.id));
@@ -31,12 +64,8 @@ export default function InsightsPage() {
     enabled: !!projectId,
   });
 
-  // Fetch completed sessions to get pattern reports
   const completedIds = useMemo(
-    () =>
-      (sessions || [])
-        .filter((s) => s.stage === "done")
-        .map((s) => s.id),
+    () => (sessions || []).filter((s) => s.stage === "done").map((s) => s.id),
     [sessions],
   );
 
@@ -46,20 +75,43 @@ export default function InsightsPage() {
     enabled: completedIds.length > 0,
   });
 
-  // Aggregate all patterns
   const allPatterns = useMemo(() => {
     if (!fullSessions) return [];
-    const patterns: (PatternCluster & { sessionId: string })[] = [];
+    const patterns: EnrichedPattern[] = [];
     for (const s of fullSessions) {
-      const report = s.pattern_report as PatternReport | null;
-      if (report?.clusters) {
-        for (const c of report.clusters) {
-          patterns.push({ ...c, sessionId: s.id });
-        }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const report = s.pattern_report as any;
+      const clusters = report?.clusters ?? [];
+      for (const c of clusters) {
+        patterns.push({
+          label: c.label || "",
+          pain_summary: c.pain_summary || "",
+          frequency: c.frequency || 0,
+          severity_score: c.severity_score || 0,
+          confidence: c.confidence || 0,
+          evidence_quotes: Array.isArray(c.evidence_quotes) ? c.evidence_quotes : [],
+          signal_ids: c.signal_ids || [],
+          sessionId: s.id,
+          sessionCreatedAt: s.created_at,
+          sessionTitle: s.title,
+        });
       }
     }
     return patterns.sort((a, b) => b.severity_score - a.severity_score);
   }, [fullSessions]);
+
+  const grouped = useMemo(() => {
+    if (groupByMode === "team") {
+      return groupBy(allPatterns, inferTeam).sort(
+        (a, b) => b[1].length - a[1].length,
+      );
+    }
+    // By month
+    return groupBy(allPatterns, (p) => {
+      const d = new Date(p.sessionCreatedAt);
+      return d.toLocaleString("default", { month: "long", year: "numeric" });
+    });
+  }, [allPatterns, groupByMode]);
 
   const isLoading = loadingSessions || loadingDetails;
 
@@ -74,39 +126,74 @@ export default function InsightsPage() {
   return (
     <div className="p-8 max-w-3xl">
       <h1 className="font-serif text-2xl text-foreground mb-1">Insights</h1>
-      <p className="text-sm text-muted mb-6">
+      <p className="text-sm text-muted mb-4">
         Patterns discovered across all your feedback sessions
       </p>
 
       {allPatterns.length > 0 ? (
-        <div className="space-y-3">
-          {allPatterns.map((pattern, idx) => (
-            <Link
-              key={`${pattern.id}-${idx}`}
-              href={`/sessions/${pattern.sessionId}`}
-              className="block bg-surface border border-border rounded-xl p-5 hover:border-muted transition-colors"
+        <>
+          {/* Group toggle */}
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => setGroupByMode("month")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                groupByMode === "month"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted hover:text-foreground"
+              }`}
             >
-              <div className="flex items-start gap-3">
-                <Badge variant={getSeverityVariant(pattern.severity_score)}>
-                  {getSeverityVariant(pattern.severity_score).toUpperCase()}
-                </Badge>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm text-foreground font-medium">
-                    {pattern.pain_summary || pattern.label}
-                  </h3>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <span className="text-xs text-muted">
-                      {pattern.frequency} mentions
-                    </span>
-                    <span className="text-xs text-muted">
-                      {pattern.evidence_quotes.length} evidence
-                    </span>
-                  </div>
-                </div>
+              By Month
+            </button>
+            <button
+              onClick={() => setGroupByMode("team")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                groupByMode === "team"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              By Team
+            </button>
+          </div>
+
+          {grouped.map(([heading, items]) => (
+            <div key={heading} className="mb-8">
+              <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-3">
+                {heading} &middot; {items.length} pattern{items.length !== 1 ? "s" : ""}
+              </h2>
+              <div className="space-y-3">
+                {items.map((pattern, idx) => (
+                  <Link
+                    key={`${pattern.sessionId}-${idx}`}
+                    href={`/sessions/${pattern.sessionId}`}
+                    className="block bg-surface border border-border rounded-xl p-5 hover:border-muted transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Badge variant={getSeverityVariant(pattern.severity_score)}>
+                        {getSeverityVariant(pattern.severity_score).toUpperCase()}
+                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm text-foreground font-medium">
+                          {pattern.label || pattern.pain_summary}
+                        </h3>
+                        {pattern.pain_summary && pattern.label && (
+                          <p className="text-xs text-muted mt-1 line-clamp-2">{pattern.pain_summary}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className="text-xs text-muted">{pattern.frequency} mentions</span>
+                          <span className="text-xs text-muted">{Math.round(pattern.confidence * 100)}% confidence</span>
+                          {pattern.sessionTitle && (
+                            <span className="text-xs text-muted/60">from {pattern.sessionTitle}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
               </div>
-            </Link>
+            </div>
           ))}
-        </div>
+        </>
       ) : (
         <EmptyState
           icon={

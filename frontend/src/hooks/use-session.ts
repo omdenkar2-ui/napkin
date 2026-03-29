@@ -7,14 +7,14 @@ import {
   sendMessage,
   addFeedback,
 } from "@/lib/api/sessions";
-import type { SessionStage } from "@/types/api";
+import { STAGES } from "@/types/session";
 import { toast } from "sonner";
 
 const STAGE_LABELS: Record<string, string> = {
-  intake: "Uploading your feedback...",
+  intake: "Processing your feedback...",
   synthesis: "Finding patterns across your feedback...",
   prioritization: "Ranking opportunities...",
-  four_questions: "Analyzing context...",
+  four_questions: "Analyzing strategic context...",
   repo_context: "Reviewing your codebase...",
   spec_building: "Building recommendations...",
   spec_qa: "Running quality checks...",
@@ -24,8 +24,7 @@ const STAGE_LABELS: Record<string, string> = {
   error: "Something went wrong",
 };
 
-// Pipeline now runs automatically — no stages need skipping
-const AUTO_SKIP_STAGES: SessionStage[] = [];
+const SLOW_STAGES = ["synthesis", "spec_building", "task_planning", "export"];
 
 export function useSession(sessionId: string) {
   const [sending, setSending] = useState(false);
@@ -40,28 +39,22 @@ export function useSession(sessionId: string) {
   } = useQuery({
     queryKey: ["session", sessionId],
     queryFn: () => getSession(sessionId),
+    staleTime: 0,
+    gcTime: 0,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (!data) return false;
+      if (!data) return 2000;
       if (data.stage === "done" || data.stage === "error") return false;
-      return 3000;
+      if (SLOW_STAGES.includes(data.stage)) return 5000;
+      return 2000;
     },
   });
 
-  // Auto-skip interactive stages
+  // Pipeline runs fully automatically — no auto-skip needed
+  // Keep the effect structure in case we add interactive stages later
   useEffect(() => {
     if (!session) return;
-    const stage = session.stage as SessionStage;
-    if (
-      AUTO_SKIP_STAGES.includes(stage) &&
-      !autoSkippedStages.current.has(stage) &&
-      !sending
-    ) {
-      autoSkippedStages.current.add(stage);
-      sendMessage(sessionId, "Continue with your best judgment").then(() => {
-        queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
-      });
-    }
+    void autoSkippedStages; // suppress unused warning
   }, [session, sessionId, sending, queryClient]);
 
   const isProcessing =
@@ -70,6 +63,12 @@ export function useSession(sessionId: string) {
   const userFacingStatus = session
     ? STAGE_LABELS[session.stage] || "Processing..."
     : "Loading...";
+
+  const stageIndex = session
+    ? STAGES.findIndex((s) => s.key === session.stage)
+    : -1;
+  const progressPct =
+    stageIndex === -1 ? 0 : Math.round((stageIndex / (STAGES.length - 2)) * 100); // -2 to exclude done+error
 
   const handleSendFeedback = useCallback(
     async (texts: string[]) => {
@@ -103,8 +102,7 @@ export function useSession(sessionId: string) {
     [sessionId, queryClient],
   );
 
-  const currentQuestions =
-    questions.length > 0 ? questions : [];
+  const currentQuestions = questions.length > 0 ? questions : [];
 
   return {
     session,
@@ -113,6 +111,7 @@ export function useSession(sessionId: string) {
     sending,
     isProcessing,
     userFacingStatus,
+    progressPct,
     questions: currentQuestions,
     handleSendFeedback,
     handleSendMessage,

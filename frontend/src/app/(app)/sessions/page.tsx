@@ -11,6 +11,34 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NewAnalysisDialog } from "@/components/sessions/new-analysis-dialog";
 import { formatRelative } from "@/lib/utils";
 import Link from "next/link";
+import type { SessionListItem } from "@/types/api";
+
+function groupSessionsByDate(sessions: SessionListItem[]) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const lastWeek = new Date(today);
+  lastWeek.setDate(lastWeek.getDate() - 7);
+  const lastMonth = new Date(today);
+  lastMonth.setMonth(lastMonth.getMonth() - 1);
+
+  const groups: Record<string, SessionListItem[]> = {
+    Today: [], Yesterday: [], "This Week": [], "This Month": [], Older: [],
+  };
+
+  for (const s of sessions) {
+    const d = new Date(s.created_at);
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (day >= today) groups["Today"].push(s);
+    else if (day >= yesterday) groups["Yesterday"].push(s);
+    else if (d >= lastWeek) groups["This Week"].push(s);
+    else if (d >= lastMonth) groups["This Month"].push(s);
+    else groups["Older"].push(s);
+  }
+
+  return Object.entries(groups).filter(([, items]) => items.length > 0);
+}
 
 export default function SessionsPage() {
   return (
@@ -115,6 +143,13 @@ function SessionsContent() {
               ? "Sessions for this project"
               : "Your feedback analysis history"}
           </p>
+          {sessions && sessions.length > 0 && (
+            <p className="text-xs text-muted mt-1">
+              {sessions.filter((s) => s.stage === "done").length} complete &middot;{" "}
+              {sessions.filter((s) => s.stage !== "done" && s.stage !== "error").length} processing &middot;{" "}
+              {sessions.length} total
+            </p>
+          )}
         </div>
         <button
           onClick={() => setShowNewAnalysis(true)}
@@ -128,39 +163,48 @@ function SessionsContent() {
       </div>
 
       {sessions && sessions.length > 0 ? (
-        <div className="space-y-2">
-          {sessions.map((s) => (
-            <Link
-              key={s.id}
-              href={`/sessions/${s.id}`}
-              className="block bg-surface border border-border rounded-xl p-4 hover:border-muted transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm text-foreground font-medium truncate">
-                    {s.title || "Untitled session"}
-                  </h3>
-                  <p className="text-xs text-muted mt-1">
-                    {formatRelative(s.created_at)}
-                  </p>
-                </div>
-                <Badge
-                  variant={
-                    s.stage === "done"
-                      ? "success"
-                      : s.stage === "error"
-                        ? "error"
-                        : "accent"
-                  }
-                >
-                  {s.stage === "done"
-                    ? "Complete"
-                    : s.stage === "error"
-                      ? "Error"
-                      : "Processing"}
-                </Badge>
+        <div>
+          {groupSessionsByDate(sessions).map(([heading, items]) => (
+            <div key={heading} className="mb-8">
+              <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-3">
+                {heading}
+              </h2>
+              <div className="space-y-2">
+                {items.map((s) => (
+                  <Link
+                    key={s.id}
+                    href={`/sessions/${s.id}`}
+                    className="block bg-surface border border-border rounded-xl p-4 hover:border-muted transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm text-foreground font-medium truncate">
+                          {s.title || `Analysis from ${formatRelative(s.created_at)}`}
+                        </h3>
+                        <p className="text-xs text-muted mt-1">
+                          {formatRelative(s.created_at)}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          s.stage === "done"
+                            ? "success"
+                            : s.stage === "error"
+                              ? "error"
+                              : "accent"
+                        }
+                      >
+                        {s.stage === "done"
+                          ? "Complete"
+                          : s.stage === "error"
+                            ? "Error"
+                            : "Processing"}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       ) : (

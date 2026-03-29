@@ -9,26 +9,24 @@ export interface StageInfo {
 }
 
 export const STAGES: StageInfo[] = [
-  { key: "intake", label: "Intake", number: 1, isInteractive: true, description: "Paste customer feedback" },
+  { key: "intake", label: "Intake", number: 1, isInteractive: false, description: "Processing feedback" },
   { key: "synthesis", label: "Synthesis", number: 2, isInteractive: false, description: "Discovering patterns" },
   { key: "prioritization", label: "Prioritization", number: 3, isInteractive: false, description: "Ranking opportunities" },
-  { key: "four_questions", label: "Questions", number: 4, isInteractive: true, description: "Strategic questions" },
-  { key: "repo_context", label: "Repo Context", number: 5, isInteractive: false, description: "Analyzing codebase" },
-  { key: "spec_building", label: "Spec Building", number: 6, isInteractive: false, description: "Building spec" },
-  { key: "spec_qa", label: "Spec QA", number: 7, isInteractive: true, description: "Quality checks" },
-  { key: "task_planning", label: "Task Planning", number: 8, isInteractive: false, description: "Creating sprint plan" },
-  { key: "export", label: "Export", number: 9, isInteractive: false, description: "Generating exports" },
-  { key: "done", label: "Done", number: 10, isInteractive: false, description: "Session complete" },
+  { key: "four_questions", label: "Context", number: 4, isInteractive: false, description: "Inferring strategic context" },
+  { key: "spec_building", label: "Spec Building", number: 5, isInteractive: false, description: "Building spec" },
+  { key: "task_planning", label: "Task Planning", number: 6, isInteractive: false, description: "Creating sprint plan" },
+  { key: "export", label: "Export", number: 7, isInteractive: false, description: "Generating exports" },
+  { key: "done", label: "Done", number: 8, isInteractive: false, description: "Session complete" },
+  { key: "error", label: "Error", number: -1, isInteractive: false, description: "Something went wrong" },
 ];
 
 export const AUTO_ADVANCE_STAGES: SessionStage[] = [
   "synthesis",
   "prioritization",
-  "repo_context",
+  "four_questions",
   "spec_building",
   "task_planning",
   "export",
-  "review",
 ];
 
 export function getStageIndex(stage: SessionStage): number {

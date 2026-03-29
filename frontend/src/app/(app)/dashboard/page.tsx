@@ -1,13 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ProjectCard } from "@/components/dashboard/project-card";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { listProjects } from "@/lib/api/projects";
+import { listSessions } from "@/lib/api/sessions";
+import { formatRelative } from "@/lib/utils";
+import { getStageIndex, STAGES } from "@/types/session";
+import type { SessionStage } from "@/types/api";
+import Link from "next/link";
+
+const STAGE_LABELS: Record<string, string> = {
+  intake: "Processing feedback...",
+  synthesis: "Finding patterns...",
+  prioritization: "Ranking opportunities...",
+  four_questions: "Analyzing context...",
+  spec_building: "Building spec...",
+  task_planning: "Creating action plan...",
+  export: "Preparing results...",
+};
 
 export default function DashboardPage() {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -22,9 +38,31 @@ export default function DashboardPage() {
     queryFn: listProjects,
   });
 
+  // Fetch sessions for all projects to show in-progress / recent
+  const firstProjectId = projects?.[0]?.id;
+  const { data: sessions } = useQuery({
+    queryKey: ["dashboard-sessions", firstProjectId],
+    queryFn: () => listSessions(firstProjectId!, 20, 0),
+    enabled: !!firstProjectId,
+    refetchInterval: 5000,
+  });
+
+  const inProgress = useMemo(
+    () => (sessions || []).filter((s) => s.stage !== "done" && s.stage !== "error"),
+    [sessions],
+  );
+  const recentCompleted = useMemo(
+    () => (sessions || []).filter((s) => s.stage === "done").slice(0, 5),
+    [sessions],
+  );
+
+  const totalSessions = sessions?.length || 0;
+  const completedCount = recentCompleted.length;
+  const inProgressCount = inProgress.length;
+
   return (
     <div className="p-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-serif text-2xl text-foreground">Dashboard</h1>
           <p className="text-sm text-muted mt-1">
@@ -38,6 +76,97 @@ export default function DashboardPage() {
           New project
         </Button>
       </div>
+
+      {/* Stats row */}
+      {totalSessions > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <p className="text-xs text-muted">Total Sessions</p>
+            <p className="text-2xl font-serif text-foreground mt-1">{totalSessions}</p>
+          </div>
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <p className="text-xs text-muted">Completed</p>
+            <p className="text-2xl font-serif text-foreground mt-1">{completedCount}</p>
+          </div>
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <p className="text-xs text-muted">In Progress</p>
+            <p className="text-2xl font-serif text-foreground mt-1">{inProgressCount}</p>
+          </div>
+        </div>
+      )}
+
+      {/* In-progress sessions */}
+      {inProgress.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-3">
+            In Progress
+          </h2>
+          <div className="space-y-2">
+            {inProgress.map((s) => {
+              const idx = getStageIndex(s.stage as SessionStage);
+              const progress = Math.round((idx / (STAGES.length - 2)) * 100); // -2 for done+error
+              return (
+                <Link
+                  key={s.id}
+                  href={`/sessions/${s.id}`}
+                  className="block bg-surface border border-accent/20 rounded-xl p-4 hover:border-accent/40 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm text-foreground font-medium truncate">
+                      {s.title || `Analysis from ${formatRelative(s.created_at)}`}
+                    </h3>
+                    <Badge variant="accent">Processing</Badge>
+                  </div>
+                  <p className="text-xs text-accent mb-2">
+                    {STAGE_LABELS[s.stage] || "Processing..."}
+                  </p>
+                  <div className="w-full bg-border rounded-full h-1">
+                    <div
+                      className="bg-accent rounded-full h-1 transition-all"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Recent completed */}
+      {recentCompleted.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-3">
+            Recent Completed
+          </h2>
+          <div className="space-y-2">
+            {recentCompleted.map((s) => (
+              <Link
+                key={s.id}
+                href={`/sessions/${s.id}`}
+                className="block bg-surface border border-border rounded-xl p-4 hover:border-muted transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm text-foreground font-medium truncate">
+                      {s.title || `Analysis from ${formatRelative(s.created_at)}`}
+                    </h3>
+                    <p className="text-xs text-muted mt-1">
+                      {s.completed_at ? formatRelative(s.completed_at) : formatRelative(s.created_at)}
+                    </p>
+                  </div>
+                  <Badge variant="success">Complete</Badge>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Projects */}
+      <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-3">
+        Projects
+      </h2>
 
       {isLoading ? (
         <div className="flex justify-center py-16">
