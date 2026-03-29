@@ -4,9 +4,17 @@ import { Sidebar } from "@/components/layout/sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen">
+    <div style={{ minHeight: "100vh" }}>
       <Sidebar />
-      <main className="ml-60 min-h-screen">{children}</main>
+      <main
+        style={{
+          marginLeft: 220,
+          minHeight: "100vh",
+          background: "#000",
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 }
