@@ -1,11 +1,42 @@
 /**
  * Extract feedback texts from any file type.
- * Handles: JSON (array of objects with feedback_text/text/content/message/body),
- * CSV, TSV, TXT, and falls back to raw text for anything else.
+ * Text-based formats (JSON, JSONL, CSV, TSV, TXT, MD) are parsed client-side.
+ * Binary formats (PDF, DOCX) are sent to the backend for extraction.
  */
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const BINARY_EXTENSIONS = new Set(["pdf", "docx"]);
+
+function getExt(filename: string): string {
+  return filename.split(".").pop()?.toLowerCase() ?? "";
+}
+
+async function parseViaBackend(file: File): Promise<string[]> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/api/v1/feedback/parse-file`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Failed to parse file");
+  }
+  const data = await res.json();
+  return data.texts ?? [];
+}
+
 export async function extractTextsFromFile(file: File): Promise<string[]> {
-  const content = await file.text();
   const name = file.name.toLowerCase();
+  const ext = getExt(name);
+
+  // Binary formats — delegate to backend
+  if (BINARY_EXTENSIONS.has(ext)) {
+    return parseViaBackend(file);
+  }
+
+  const content = await file.text();
 
   // JSON — extract text from any common field name
   if (name.endsWith(".json") || name.endsWith(".jsonl")) {
@@ -79,12 +110,16 @@ export async function extractTextsFromFile(file: File): Promise<string[]> {
     }).filter((t) => t.length > 0);
   }
 
-  // TXT / MD / any other text — split by double newline or line
+  // TXT / MD — split by double newline or line
   if (name.endsWith(".txt") || name.endsWith(".md")) {
     const chunks = content.split(/\n\n+/).filter((c) => c.trim().length > 0);
     return chunks.length > 1 ? chunks : content.split("\n").filter((l) => l.trim().length > 0);
   }
 
-  // Fallback — split by lines
-  return content.split("\n").filter((l) => l.trim().length > 0);
+  // Fallback — try backend first for unknown types, fall back to line splitting
+  try {
+    return await parseViaBackend(file);
+  } catch {
+    return content.split("\n").filter((l) => l.trim().length > 0);
+  }
 }

@@ -15,6 +15,7 @@ from app.schemas.api import (
     FeedbackListResponse,
     FeedbackPaste,
     FeedbackUploadResponse,
+    FileParseResponse,
     ProjectCreate,
     ProjectUpdate,
 )
@@ -215,6 +216,98 @@ async def upload_feedback_file(
         source_id=None,
         session_id=None,
     )
+
+
+@feedback_router.post("/parse-file", response_model=FileParseResponse)
+async def parse_feedback_file(
+    file: UploadFile = File(...),  # noqa: B008
+):
+    """Extract texts from a file without inserting into the database."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+
+    texts: list[str] = []
+    filename = file.filename.lower()
+
+    if filename.endswith(".txt") or filename.endswith(".md"):
+        texts = content.decode("utf-8", errors="ignore").split("\n\n")
+    elif filename.endswith(".csv"):
+        import csv
+        import io
+        reader = csv.reader(io.StringIO(content.decode("utf-8", errors="ignore")))
+        next(reader, None)
+        for row in reader:
+            texts.append(" | ".join(row))
+    elif filename.endswith(".tsv"):
+        import io
+        lines = content.decode("utf-8", errors="ignore").split("\n")
+        for line in lines[1:]:
+            if line.strip():
+                texts.append(" | ".join(line.split("\t")))
+    elif filename.endswith(".docx"):
+        import io
+        from docx import Document
+        doc = Document(io.BytesIO(content))
+        texts = [p.text for p in doc.paragraphs if p.text.strip()]
+    elif filename.endswith(".pdf"):
+        import io
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(content))
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                texts.append(text)
+    elif filename.endswith(".json"):
+        import json
+        parsed = json.loads(content.decode("utf-8", errors="ignore"))
+        items = parsed if isinstance(parsed, list) else [parsed]
+        text_fields = [
+            "feedback_text", "feedback", "text", "content", "message",
+            "body", "comment", "review", "note", "description", "summary",
+            "response", "input", "query", "question", "answer",
+        ]
+        for item in items:
+            if isinstance(item, str):
+                texts.append(item)
+            elif isinstance(item, dict):
+                for field in text_fields:
+                    if field in item and isinstance(item[field], str) and item[field].strip():
+                        texts.append(item[field].strip())
+                        break
+                else:
+                    texts.append(json.dumps(item))
+    elif filename.endswith(".jsonl"):
+        import json
+        text_fields = [
+            "feedback_text", "feedback", "text", "content", "message",
+            "body", "comment", "review", "note", "description", "summary",
+            "response", "input", "query", "question", "answer",
+        ]
+        for line in content.decode("utf-8", errors="ignore").split("\n"):
+            if not line.strip():
+                continue
+            obj = json.loads(line)
+            if isinstance(obj, str):
+                texts.append(obj)
+            elif isinstance(obj, dict):
+                for field in text_fields:
+                    if field in obj and isinstance(obj[field], str) and obj[field].strip():
+                        texts.append(obj[field].strip())
+                        break
+                else:
+                    texts.append(json.dumps(obj))
+    else:
+        # Fallback: try to read as text
+        try:
+            texts = content.decode("utf-8").split("\n")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {filename}")
+
+    return FileParseResponse(texts=[t.strip() for t in texts if t.strip()])
 
 
 @feedback_router.get("", response_model=FeedbackListResponse)

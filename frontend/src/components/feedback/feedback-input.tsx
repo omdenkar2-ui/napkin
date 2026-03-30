@@ -545,7 +545,7 @@ export const FeedbackInput = forwardRef<FeedbackInputRef, FeedbackInputProps>(
           type="file"
           multiple
           className="hidden"
-          accept=".json,.jsonl,.csv,.tsv,.txt,.md,.pdf"
+          accept=".json,.jsonl,.csv,.tsv,.txt,.md,.pdf,.docx"
           onChange={(e) => {
             void handleFileSelect(e.target.files);
             if (e.target) e.target.value = "";

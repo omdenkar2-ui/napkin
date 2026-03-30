@@ -13,11 +13,14 @@ export interface UploadedFile {
 const ACCEPTED_TYPES = [
   "text/csv",
   "text/plain",
+  "text/markdown",
+  "text/tab-separated-values",
+  "application/json",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/pdf",
 ];
 
-const ACCEPTED_EXTENSIONS = [".csv", ".txt", ".docx", ".pdf"];
+const ACCEPTED_EXTENSIONS = [".csv", ".txt", ".md", ".tsv", ".json", ".jsonl", ".docx", ".pdf"];
 
 function isAcceptedFile(file: File): boolean {
   if (ACCEPTED_TYPES.includes(file.type)) return true;
@@ -67,7 +70,7 @@ export function useFileUpload(projectId: string | null) {
 
       const validFiles = fileList.filter(isAcceptedFile);
       if (validFiles.length === 0) {
-        toast.error("Please upload CSV, TXT, DOCX, or PDF files");
+        toast.error("Please upload CSV, TXT, JSON, PDF, DOCX, or other supported files");
         return;
       }
 

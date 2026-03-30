@@ -129,6 +129,11 @@ class FeedbackUploadResponse(BaseModel):
     session_id: UUID | None
 
 
+class FileParseResponse(BaseModel):
+    texts: list[str]
+
+
+
 class FeedbackItemResponse(BaseModel):
     id: UUID
     raw_text: str
