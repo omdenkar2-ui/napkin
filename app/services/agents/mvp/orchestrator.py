@@ -56,12 +56,12 @@ async def run_pipeline(
         signals = await extract_signals(raw_texts)
         _save(db, session_id, intake_summary={"items": signals})
 
-        if len(signals) < 2:
+        if not signals:
             _update(db, session_id, stage="done", status="completed",
                     completed_at=_now(),
                     messages=[_msg(
-                        f"Extracted {len(signals)} signal(s) — need at least 2 for pattern analysis. "
-                        "Please provide more feedback."
+                        "Could not extract any feedback signals from the provided text. "
+                        "Please provide customer feedback to analyze."
                     )])
             return
 
