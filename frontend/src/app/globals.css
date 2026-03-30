@@ -100,3 +100,24 @@ textarea:focus {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+[data-slot="emoji-picker-search-wrapper"] {
+  border: none !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-slot="emoji-picker-search"] {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+[data-slot="emoji-picker-search"]:focus {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}

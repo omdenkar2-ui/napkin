@@ -37,7 +37,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${instrumentSerif.variable} ${caveat.variable} h-full`}
     >
-      <body className="min-h-full bg-background text-foreground antialiased">
+      <body suppressHydrationWarning className="min-h-full bg-background text-foreground antialiased">
         <QueryProvider>
           <AuthProvider>
             {children}

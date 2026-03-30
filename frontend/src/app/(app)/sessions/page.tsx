@@ -2,58 +2,54 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { listSessions } from "@/lib/api/sessions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { listSessions, deleteSession } from "@/lib/api/sessions";
 import { getOrCreateDefaultProject } from "@/lib/api/projects";
 import { Spinner } from "@/components/ui/spinner";
-import { formatRelative } from "@/lib/utils";
+import { SessionsGrid } from "@/components/sessions/sessions-grid";
+import type { SessionCardSession } from "@/components/sessions/session-card";
 import type { SessionListItem, SessionStage } from "@/types/api";
 
-const STAGE_LABELS: Partial<Record<SessionStage, string>> = {
-  intake: "Processing...",
-  synthesis: "Analyzing...",
-  prioritization: "Ranking...",
-  four_questions: "Context...",
-  spec_building: "Building...",
-  task_planning: "Planning...",
-};
+const LS_EMOJI_KEY = "napkin-session-emojis";
 
-function groupSessionsByDate(sessions: SessionListItem[]) {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const thisWeekStart = new Date(today);
-  thisWeekStart.setDate(thisWeekStart.getDate() - 7);
-  const thisMonthStart = new Date(today);
-  thisMonthStart.setMonth(thisMonthStart.getMonth() - 1);
-
-  const groups: Record<string, SessionListItem[]> = {
-    Today: [],
-    Yesterday: [],
-    "This Week": [],
-    "This Month": [],
-    Older: [],
-  };
-
-  for (const s of sessions) {
-    const d = new Date(s.created_at);
-    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    if (day >= today) groups["Today"].push(s);
-    else if (day >= yesterday) groups["Yesterday"].push(s);
-    else if (d >= thisWeekStart) groups["This Week"].push(s);
-    else if (d >= thisMonthStart) groups["This Month"].push(s);
-    else groups["Older"].push(s);
+function deriveCardStatus(stage: SessionStage): SessionCardSession["status"] {
+  if (stage === "done") return "spec_ready";
+  if (stage === "error") return "no_patterns";
+  if (
+    stage === "spec_building" ||
+    stage === "spec_qa" ||
+    stage === "task_planning" ||
+    stage === "export"
+  ) {
+    return "patterns_ready";
   }
+  return "processing";
+}
 
-  return Object.entries(groups).filter(([, items]) => items.length > 0);
+function deriveSessionTitle(session: SessionListItem): string {
+  if (session.title && !session.title.startsWith("Session ")) return session.title;
+  return "Untitled session";
+}
+
+function loadEmojiMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LS_EMOJI_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
 }
 
 export default function SessionsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [emojiMap, setEmojiMap] = useState<Record<string, string>>({});
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setEmojiMap(loadEmojiMap());
+  }, []);
 
   useEffect(() => {
     getOrCreateDefaultProject()
@@ -68,6 +64,31 @@ export default function SessionsPage() {
     refetchInterval: 10000,
   });
 
+  function handleEmojiChange(id: string, emoji: string) {
+    const updated = { ...emojiMap, [id]: emoji };
+    setEmojiMap(updated);
+    try {
+      localStorage.setItem(LS_EMOJI_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setDeletedIds((prev) => new Set(prev).add(id));
+    try {
+      await deleteSession(id);
+      queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
   if (!projectId || isLoading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
@@ -76,151 +97,24 @@ export default function SessionsPage() {
     );
   }
 
-  const allSessions = sessions ?? [];
-  const filtered = search.trim()
-    ? allSessions.filter((s) =>
-        (s.title ?? "").toLowerCase().includes(search.toLowerCase()),
-      )
-    : allSessions;
-
-  const completedCount = allSessions.filter((s) => s.stage === "done").length;
-  const processingCount = allSessions.filter(
-    (s) => s.stage !== "done" && s.stage !== "error",
-  ).length;
+  const cardSessions: SessionCardSession[] = (sessions ?? [])
+    .filter((s) => !deletedIds.has(s.id))
+    .map((s) => ({
+      id: s.id,
+      title: deriveSessionTitle(s),
+      emoji: emojiMap[s.id] ?? "📋",
+      status: deriveCardStatus(s.stage),
+      feedbackCount: 0,
+      createdAt: s.created_at,
+    }));
 
   return (
-    <div className="max-w-[800px] p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
-          {allSessions.length > 0 && (
-            <p className="text-[13px] text-text-tertiary mt-2">
-              {completedCount} completed · {processingCount} processing ·{" "}
-              {allSessions.length} total
-            </p>
-          )}
-        </div>
-        <Link
-          href="/new"
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-cta-bg text-cta-text text-[13px] font-medium"
-        >
-          <svg
-            className="w-3.5 h-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          New session
-        </Link>
-      </div>
-
-      {/* Search */}
-      {allSessions.length >= 3 && (
-        <div className="relative mb-6">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 6.675 6.675a7.5 7.5 0 0 0 9.975 9.975z"
-            />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sessions..."
-            className="w-full h-10 bg-card-bg border border-border rounded-lg pl-10 pr-4 text-sm text-foreground placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
-          />
-        </div>
-      )}
-
-      {/* Session list or empty state */}
-      {allSessions.length === 0 ? (
-        <div className="flex flex-col items-center py-20 text-center">
-          <p className="text-[16px] font-medium text-foreground">
-            No sessions yet
-          </p>
-          <p className="text-[14px] text-text-secondary mt-2">
-            Analyze customer feedback to see sessions here.
-          </p>
-          <Link
-            href="/new"
-            className="inline-flex items-center mt-6 h-10 px-5 bg-cta-bg text-cta-text rounded-lg text-[13px] font-medium"
-          >
-            Start new session →
-          </Link>
-        </div>
-      ) : (
-        <div>
-          {groupSessionsByDate(filtered).map(([heading, items], groupIdx) => (
-            <div key={heading} className={groupIdx === 0 ? "mt-0" : "mt-6"}>
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-ghost mb-2">
-                {heading}
-              </h2>
-              <div>
-                {items.map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/s/${s.id}`}
-                    className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-card-bg transition-colors border-b border-[rgba(255,255,255,0.04)] last:border-0"
-                  >
-                    {/* Left */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[14px] text-foreground truncate">
-                        {s.title ||
-                          `Analysis from ${formatRelative(s.created_at)}`}
-                      </p>
-                      <p className="text-[12px] text-text-tertiary mt-1">
-                        {formatRelative(s.created_at)}
-                      </p>
-                    </div>
-
-                    {/* Right */}
-                    <div className="flex items-center gap-3 shrink-0 ml-4">
-                      {s.stage === "done" ? (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-accent-green" />
-                          <span className="text-[12px] text-text-tertiary">
-                            Complete
-                          </span>
-                        </>
-                      ) : s.stage === "error" ? (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-accent-red" />
-                          <span className="text-[12px] text-text-tertiary">
-                            Error
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-white/50 animate-pulse" />
-                          <span className="text-[12px] text-text-secondary">
-                            {STAGE_LABELS[s.stage] ?? "Processing..."}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <SessionsGrid
+      sessions={cardSessions}
+      onSessionClick={(id) => router.push(`/s/${id}`)}
+      onNewSession={() => router.push("/new")}
+      onEmojiChange={handleEmojiChange}
+      onDelete={handleDelete}
+    />
   );
 }

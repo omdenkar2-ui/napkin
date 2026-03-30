@@ -154,6 +154,10 @@ class SessionService:
             {"repo_files": repo_files}
         ).eq("id", str(session_id)).execute()
 
+    async def delete_session(self, session_id: UUID) -> None:
+        """Permanently delete a session and all its data."""
+        self.db.table("sessions").delete().eq("id", str(session_id)).execute()
+
     async def list_sessions(
         self, project_id: UUID, limit: int = 20, offset: int = 0
     ) -> list[dict]:

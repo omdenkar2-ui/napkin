@@ -156,6 +156,19 @@ async def add_feedback(
     )
 
 
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Delete a session permanently."""
+    db = get_supabase_admin()
+    _verify_session_access(db, session_id, user)
+
+    service = get_session_service()
+    await service.delete_session(session_id)
+
+
 @router.get("/{session_id}", response_model=dict)
 async def get_session(
     session_id: UUID,

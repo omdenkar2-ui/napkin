@@ -106,6 +106,10 @@ export async function uploadFeedbackFile(
   return api.upload("/feedback/upload", file, { project_id: projectId });
 }
 
+export async function deleteSession(id: string): Promise<void> {
+  await api.delete(`/sessions/${id}`);
+}
+
 export async function pasteFeedback(
   projectId: string,
   texts: string[],

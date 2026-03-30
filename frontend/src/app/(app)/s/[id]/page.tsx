@@ -6,6 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useSession } from "@/hooks/use-session";
 import { Spinner } from "@/components/ui/spinner";
+import { SessionChatWidget } from "@/components/chat/session-chat-widget";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 
@@ -548,48 +549,73 @@ export default function SessionViewPage() {
   /* Error */
   if (session?.stage === "error") {
     return (
-      <div className="max-w-[800px] mx-auto p-8">
-        <ErrorState />
-      </div>
+      <>
+        <div className="max-w-[800px] mx-auto p-8">
+          <ErrorState />
+        </div>
+        <div className="fixed bottom-6 right-6 z-50">
+          <SessionChatWidget />
+        </div>
+      </>
     );
   }
 
   /* Processing */
   if (isProcessing) {
     return (
-      <div className="max-w-[800px] mx-auto p-8">
-        <ProcessingState userFacingStatus={userFacingStatus} />
-      </div>
+      <>
+        <div className="max-w-[800px] mx-auto p-8">
+          <ProcessingState userFacingStatus={userFacingStatus} />
+        </div>
+        <div className="fixed bottom-6 right-6 z-50">
+          <SessionChatWidget />
+        </div>
+      </>
     );
   }
 
   /* Done but no patterns */
   if (session?.stage === "done" && clusters.length === 0) {
     return (
-      <div className="max-w-[800px] mx-auto p-8">
-        <NoPatternsState />
-      </div>
+      <>
+        <div className="max-w-[800px] mx-auto p-8">
+          <NoPatternsState />
+        </div>
+        <div className="fixed bottom-6 right-6 z-50">
+          <SessionChatWidget />
+        </div>
+      </>
     );
   }
 
   /* Spec view */
   if (showSpec && session) {
     return (
-      <div className="max-w-[800px] mx-auto p-8">
-        <SpecView session={session} onBack={handleBack} />
-      </div>
+      <>
+        <div className="max-w-[800px] mx-auto p-8">
+          <SpecView session={session} onBack={handleBack} />
+        </div>
+        <div className="fixed bottom-6 right-6 z-50">
+          <SessionChatWidget />
+        </div>
+      </>
     );
   }
 
   /* Pattern cards — the magic moment */
   if (session) {
     return (
-      <div className="max-w-[800px] mx-auto p-8">
-        <PatternCardsState
-          session={session}
-          onShowSpec={handleShowSpec}
-        />
-      </div>
+      <>
+        <div className="max-w-[800px] mx-auto p-8">
+          <PatternCardsState
+            session={session}
+            onShowSpec={handleShowSpec}
+          />
+        </div>
+        <div className="fixed bottom-6 right-6 z-50">
+          <SessionChatWidget />
+        </div>
+      </>
     );
   }
 
