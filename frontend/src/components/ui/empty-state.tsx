@@ -23,9 +23,9 @@ export function EmptyState({
         className,
       )}
     >
-      {icon && <div className="mb-4 text-muted">{icon}</div>}
-      <h3 className="text-lg font-medium text-foreground mb-1">{title}</h3>
-      <p className="text-sm text-muted max-w-sm mb-6">{description}</p>
+      {icon && <div className="mb-4 text-text-ghost">{icon}</div>}
+      <h3 className="text-[16px] font-medium text-foreground mb-1">{title}</h3>
+      <p className="text-[14px] text-text-secondary mt-2 max-w-[360px] mx-auto mb-6">{description}</p>
       {action}
     </div>
   );

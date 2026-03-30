@@ -44,7 +44,7 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className={cn(
-          "relative z-10 w-full max-w-md rounded-[8px] bg-[#111] border border-border p-6",
+          "relative z-10 w-full max-w-md rounded-[8px] bg-surface border border-border p-6",
           "animate-in fade-in zoom-in-95",
           className,
         )}
@@ -71,5 +71,5 @@ export function DialogDescription({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-muted mb-6", className)} {...props} />;
+  return <p className={cn("text-sm text-text-secondary mb-6", className)} {...props} />;
 }

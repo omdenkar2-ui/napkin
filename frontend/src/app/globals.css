@@ -1,37 +1,57 @@
 @import "tailwindcss";
 
 :root {
+  /* Backgrounds */
   --background: #000000;
-  --foreground: rgba(255, 255, 255, 0.85);
-  --muted: rgba(255, 255, 255, 0.40);
-  --surface: rgba(255, 255, 255, 0.07);
-  --border: rgba(255, 255, 255, 0.1);
-  --accent: #1B4D4A;
-  --accent-light: #267A75;
-  --accent-foreground: #ffffff;
+  --surface: #0e0e10;
+  --sidebar-bg: #0a0a0a;
+  --card-bg: rgba(255, 255, 255, 0.03);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(255, 255, 255, 0.18);
+
+  /* Text hierarchy */
+  --foreground: rgba(255, 255, 255, 0.88);
+  --text-secondary: rgba(255, 255, 255, 0.60);
+  --text-tertiary: rgba(255, 255, 255, 0.38);
+  --text-ghost: rgba(255, 255, 255, 0.20);
+
+  /* Semantic colors */
+  --accent-blue: rgba(99, 130, 255, 1);
+  --accent-green: rgba(72, 199, 142, 1);
+  --accent-yellow: rgba(255, 199, 72, 1);
+  --accent-red: rgba(255, 80, 80, 1);
+  --accent-purple: rgba(190, 99, 255, 1);
+
+  /* Functional */
+  --cta-bg: #ffffff;
+  --cta-text: #000000;
   --destructive: #ef4444;
-  --success: #22c55e;
-  --warning: #eab308;
-  --accent-action: #E87B35;
-  --accent-action-hover: #D06A28;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
   --color-surface: var(--surface);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-card-bg: var(--card-bg);
   --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-light: var(--accent-light);
-  --color-accent-foreground: var(--accent-foreground);
+  --color-border-hover: var(--border-hover);
+  --color-border-focus: var(--border-focus);
+  --color-foreground: var(--foreground);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-ghost: var(--text-ghost);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-red: var(--accent-red);
+  --color-accent-purple: var(--accent-purple);
+  --color-cta-bg: var(--cta-bg);
+  --color-cta-text: var(--cta-text);
   --color-destructive: var(--destructive);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-accent-action: var(--accent-action);
-  --color-accent-action-hover: var(--accent-action-hover);
   --font-sans: var(--font-inter);
-  --font-serif: var(--font-instrument-serif);
   --font-handwritten: var(--font-caveat);
 }
 
@@ -62,6 +82,21 @@ body {
 
 /* Focus styles */
 *:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid rgba(255, 255, 255, 0.4);
   outline-offset: 2px;
+}
+
+/* Remove focus ring from textareas (outer card handles focus state) */
+textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Hide scrollbar visually while keeping scroll functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }

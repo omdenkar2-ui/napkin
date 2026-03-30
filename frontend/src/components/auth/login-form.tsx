@@ -31,7 +31,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/");
   };
 
   const handleGoogleLogin = async () => {
@@ -51,15 +51,15 @@ export function LoginForm() {
   return (
     <div>
       <div className="text-center mb-8">
-        <h1 className="font-serif text-3xl text-foreground mb-2">
+        <h1 className="text-3xl font-semibold text-foreground mb-2">
           Welcome back
         </h1>
-        <p className="text-sm text-muted">Sign in to your Napkin account</p>
+        <p className="text-sm text-text-secondary">Sign in to your Napkin account</p>
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm text-muted mb-1.5">
+          <label htmlFor="email" className="block text-sm text-text-secondary mb-1.5">
             Email
           </label>
           <Input
@@ -74,7 +74,7 @@ export function LoginForm() {
         <div>
           <label
             htmlFor="password"
-            className="block text-sm text-muted mb-1.5"
+            className="block text-sm text-text-secondary mb-1.5"
           >
             Password
           </label>
@@ -102,7 +102,7 @@ export function LoginForm() {
           <div className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-background px-2 text-muted">or</span>
+          <span className="bg-background px-2 text-text-tertiary">or</span>
         </div>
       </div>
 
@@ -132,9 +132,9 @@ export function LoginForm() {
         Continue with Google
       </Button>
 
-      <p className="text-center text-sm text-muted mt-6">
+      <p className="text-center text-sm text-text-secondary mt-6">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-foreground hover:text-accent-light">
+        <Link href="/signup" className="text-foreground hover:text-foreground/80 transition-colors duration-150">
           Sign up
         </Link>
       </p>

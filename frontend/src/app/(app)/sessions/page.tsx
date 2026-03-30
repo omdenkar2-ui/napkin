@@ -1,30 +1,40 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { listSessions } from "@/lib/api/sessions";
-import { getOrCreateDefaultProject, getProject } from "@/lib/api/projects";
-import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
-import { EmptyState } from "@/components/ui/empty-state";
-import { NewAnalysisDialog } from "@/components/sessions/new-analysis-dialog";
-import { formatRelative } from "@/lib/utils";
 import Link from "next/link";
-import type { SessionListItem } from "@/types/api";
+import { listSessions } from "@/lib/api/sessions";
+import { getOrCreateDefaultProject } from "@/lib/api/projects";
+import { Spinner } from "@/components/ui/spinner";
+import { formatRelative } from "@/lib/utils";
+import type { SessionListItem, SessionStage } from "@/types/api";
+
+const STAGE_LABELS: Partial<Record<SessionStage, string>> = {
+  intake: "Processing...",
+  synthesis: "Analyzing...",
+  prioritization: "Ranking...",
+  four_questions: "Context...",
+  spec_building: "Building...",
+  task_planning: "Planning...",
+};
 
 function groupSessionsByDate(sessions: SessionListItem[]) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const lastWeek = new Date(today);
-  lastWeek.setDate(lastWeek.getDate() - 7);
-  const lastMonth = new Date(today);
-  lastMonth.setMonth(lastMonth.getMonth() - 1);
+  const thisWeekStart = new Date(today);
+  thisWeekStart.setDate(thisWeekStart.getDate() - 7);
+  const thisMonthStart = new Date(today);
+  thisMonthStart.setMonth(thisMonthStart.getMonth() - 1);
 
   const groups: Record<string, SessionListItem[]> = {
-    Today: [], Yesterday: [], "This Week": [], "This Month": [], Older: [],
+    Today: [],
+    Yesterday: [],
+    "This Week": [],
+    "This Month": [],
+    Older: [],
   };
 
   for (const s of sessions) {
@@ -32,8 +42,8 @@ function groupSessionsByDate(sessions: SessionListItem[]) {
     const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     if (day >= today) groups["Today"].push(s);
     else if (day >= yesterday) groups["Yesterday"].push(s);
-    else if (d >= lastWeek) groups["This Week"].push(s);
-    else if (d >= lastMonth) groups["This Month"].push(s);
+    else if (d >= thisWeekStart) groups["This Week"].push(s);
+    else if (d >= thisMonthStart) groups["This Month"].push(s);
     else groups["Older"].push(s);
   }
 
@@ -41,165 +51,168 @@ function groupSessionsByDate(sessions: SessionListItem[]) {
 }
 
 export default function SessionsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" />
-        </div>
-      }
-    >
-      <SessionsContent />
-    </Suspense>
-  );
-}
-
-function SessionsContent() {
-  const searchParams = useSearchParams();
-  const urlProjectId = searchParams.get("project");
-  const [showNewAnalysis, setShowNewAnalysis] = useState(false);
-
-  // When a project ID is in the URL, use it directly — no effect needed
-  // Only fall back to default when there's no URL param
-  const [fallbackProjectId, setFallbackProjectId] = useState<string | null>(
-    null,
-  );
+  const router = useRouter();
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (!urlProjectId) {
-      getOrCreateDefaultProject().then((p) => setFallbackProjectId(p.id));
-    }
-  }, [urlProjectId]);
+    getOrCreateDefaultProject()
+      .then((p) => setProjectId(p.id))
+      .catch(() => router.push("/setup"));
+  }, [router]);
 
-  // The actual project ID to use: URL param takes priority
-  const projectId = urlProjectId || fallbackProjectId;
-
-  // Fetch project name when viewing a specific project
-  const { data: project } = useQuery({
-    queryKey: ["project", urlProjectId],
-    queryFn: () => getProject(urlProjectId!),
-    enabled: !!urlProjectId,
-    staleTime: 60_000,
-  });
-
-  const projectName = project?.name || null;
-
-  const {
-    data: sessions,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: sessions, isLoading } = useQuery({
     queryKey: ["sessions", projectId],
-    queryFn: () => listSessions(projectId!, 50, 0),
+    queryFn: () => listSessions(projectId!, 100, 0),
     enabled: !!projectId,
+    refetchInterval: 10000,
   });
 
-  if (isLoading || !projectId) {
+  if (!projectId || isLoading) {
     return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" />
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <Spinner size="md" />
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-8">
-        <EmptyState
-          icon={
-            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-          }
-          title="Could not load sessions"
-          description="Make sure the backend is running."
-        />
-      </div>
-    );
-  }
+  const allSessions = sessions ?? [];
+  const filtered = search.trim()
+    ? allSessions.filter((s) =>
+        (s.title ?? "").toLowerCase().includes(search.toLowerCase()),
+      )
+    : allSessions;
+
+  const completedCount = allSessions.filter((s) => s.stage === "done").length;
+  const processingCount = allSessions.filter(
+    (s) => s.stage !== "done" && s.stage !== "error",
+  ).length;
 
   return (
-    <div className="p-8 max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-[800px] p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            {projectName && (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="text-sm text-muted hover:text-foreground transition-colors"
-                >
-                  Dashboard
-                </Link>
-                <span className="text-sm text-muted">/</span>
-              </>
-            )}
-            <h1 className="font-serif text-2xl text-foreground">
-              {projectName || "Sessions"}
-            </h1>
-          </div>
-          <p className="text-sm text-muted">
-            {projectName
-              ? "Sessions for this project"
-              : "Your feedback analysis history"}
-          </p>
-          {sessions && sessions.length > 0 && (
-            <p className="text-xs text-muted mt-1">
-              {sessions.filter((s) => s.stage === "done").length} complete &middot;{" "}
-              {sessions.filter((s) => s.stage !== "done" && s.stage !== "error").length} processing &middot;{" "}
-              {sessions.length} total
+          <h1 className="text-2xl font-semibold text-foreground">Sessions</h1>
+          {allSessions.length > 0 && (
+            <p className="text-[13px] text-text-tertiary mt-2">
+              {completedCount} completed · {processingCount} processing ·{" "}
+              {allSessions.length} total
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowNewAnalysis(true)}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-[8px] text-sm font-medium bg-accent text-accent-foreground hover:bg-accent-light transition-colors"
+        <Link
+          href="/new"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-cta-bg text-cta-text text-[13px] font-medium"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          <svg
+            className="w-3.5 h-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
-          New analysis
-        </button>
+          New session
+        </Link>
       </div>
 
-      {sessions && sessions.length > 0 ? (
+      {/* Search */}
+      {allSessions.length >= 3 && (
+        <div className="relative mb-6">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 6.675 6.675a7.5 7.5 0 0 0 9.975 9.975z"
+            />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search sessions..."
+            className="w-full h-10 bg-card-bg border border-border rounded-lg pl-10 pr-4 text-sm text-foreground placeholder:text-text-tertiary focus:border-border-focus focus:outline-none"
+          />
+        </div>
+      )}
+
+      {/* Session list or empty state */}
+      {allSessions.length === 0 ? (
+        <div className="flex flex-col items-center py-20 text-center">
+          <p className="text-[16px] font-medium text-foreground">
+            No sessions yet
+          </p>
+          <p className="text-[14px] text-text-secondary mt-2">
+            Analyze customer feedback to see sessions here.
+          </p>
+          <Link
+            href="/new"
+            className="inline-flex items-center mt-6 h-10 px-5 bg-cta-bg text-cta-text rounded-lg text-[13px] font-medium"
+          >
+            Start new session →
+          </Link>
+        </div>
+      ) : (
         <div>
-          {groupSessionsByDate(sessions).map(([heading, items]) => (
-            <div key={heading} className="mb-8">
-              <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-3">
+          {groupSessionsByDate(filtered).map(([heading, items], groupIdx) => (
+            <div key={heading} className={groupIdx === 0 ? "mt-0" : "mt-6"}>
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-ghost mb-2">
                 {heading}
               </h2>
-              <div className="space-y-2">
+              <div>
                 {items.map((s) => (
                   <Link
                     key={s.id}
-                    href={`/sessions/${s.id}`}
-                    className="block bg-surface border border-border rounded-xl p-4 hover:border-muted transition-colors"
+                    href={`/s/${s.id}`}
+                    className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-card-bg transition-colors border-b border-[rgba(255,255,255,0.04)] last:border-0"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm text-foreground font-medium truncate">
-                          {s.title || `Analysis from ${formatRelative(s.created_at)}`}
-                        </h3>
-                        <p className="text-xs text-muted mt-1">
-                          {formatRelative(s.created_at)}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          s.stage === "done"
-                            ? "success"
-                            : s.stage === "error"
-                              ? "error"
-                              : "accent"
-                        }
-                      >
-                        {s.stage === "done"
-                          ? "Complete"
-                          : s.stage === "error"
-                            ? "Error"
-                            : "Processing"}
-                      </Badge>
+                    {/* Left */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] text-foreground truncate">
+                        {s.title ||
+                          `Analysis from ${formatRelative(s.created_at)}`}
+                      </p>
+                      <p className="text-[12px] text-text-tertiary mt-1">
+                        {formatRelative(s.created_at)}
+                      </p>
+                    </div>
+
+                    {/* Right */}
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      {s.stage === "done" ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-accent-green" />
+                          <span className="text-[12px] text-text-tertiary">
+                            Complete
+                          </span>
+                        </>
+                      ) : s.stage === "error" ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-accent-red" />
+                          <span className="text-[12px] text-text-tertiary">
+                            Error
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-white/50 animate-pulse" />
+                          <span className="text-[12px] text-text-secondary">
+                            {STAGE_LABELS[s.stage] ?? "Processing..."}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </Link>
                 ))}
@@ -207,37 +220,6 @@ function SessionsContent() {
             </div>
           ))}
         </div>
-      ) : (
-        <EmptyState
-          icon={
-            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
-          }
-          title="No sessions yet"
-          description={
-            projectName
-              ? `No sessions in "${projectName}" yet. Start a new analysis.`
-              : "Start by uploading feedback on the Dashboard."
-          }
-          action={
-            <button
-              onClick={() => setShowNewAnalysis(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-sm text-foreground hover:bg-border transition-colors"
-            >
-              Start new analysis
-            </button>
-          }
-        />
-      )}
-
-      {projectId && (
-        <NewAnalysisDialog
-          open={showNewAnalysis}
-          onClose={() => setShowNewAnalysis(false)}
-          projectId={projectId}
-          projectName={projectName}
-        />
       )}
     </div>
   );

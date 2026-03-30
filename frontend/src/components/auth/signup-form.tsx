@@ -36,7 +36,7 @@ export function SignupForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/");
   };
 
   const handleGoogleSignup = async () => {
@@ -53,17 +53,17 @@ export function SignupForm() {
   return (
     <div>
       <div className="text-center mb-8">
-        <h1 className="font-serif text-3xl text-foreground mb-2">
+        <h1 className="text-3xl font-semibold text-foreground mb-2">
           Create your account
         </h1>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-text-secondary">
           Start turning feedback into specs
         </p>
       </div>
 
       <form onSubmit={handleSignup} className="space-y-4">
         <div>
-          <label htmlFor="name" className="block text-sm text-muted mb-1.5">
+          <label htmlFor="name" className="block text-sm text-text-secondary mb-1.5">
             Full name
           </label>
           <Input
@@ -76,7 +76,7 @@ export function SignupForm() {
           />
         </div>
         <div>
-          <label htmlFor="email" className="block text-sm text-muted mb-1.5">
+          <label htmlFor="email" className="block text-sm text-text-secondary mb-1.5">
             Email
           </label>
           <Input
@@ -91,7 +91,7 @@ export function SignupForm() {
         <div>
           <label
             htmlFor="password"
-            className="block text-sm text-muted mb-1.5"
+            className="block text-sm text-text-secondary mb-1.5"
           >
             Password
           </label>
@@ -120,7 +120,7 @@ export function SignupForm() {
           <div className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-background px-2 text-muted">or</span>
+          <span className="bg-background px-2 text-text-tertiary">or</span>
         </div>
       </div>
 
@@ -150,9 +150,9 @@ export function SignupForm() {
         Continue with Google
       </Button>
 
-      <p className="text-center text-sm text-muted mt-6">
+      <p className="text-center text-sm text-text-secondary mt-6">
         Already have an account?{" "}
-        <Link href="/login" className="text-foreground hover:text-accent-light">
+        <Link href="/login" className="text-foreground hover:text-foreground/80 transition-colors duration-150">
           Sign in
         </Link>
       </p>

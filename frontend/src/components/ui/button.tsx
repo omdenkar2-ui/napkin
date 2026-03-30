@@ -18,12 +18,13 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           "inline-flex items-center justify-center rounded-[8px] font-medium transition-colors",
           "disabled:opacity-50 disabled:pointer-events-none",
           {
-            "bg-accent text-accent-foreground hover:bg-accent-light":
+            "bg-white text-black hover:bg-[rgba(255,255,255,0.9)] border-none":
               variant === "primary",
-            "bg-surface text-foreground border border-border hover:bg-[rgba(255,255,255,0.12)]":
+            "bg-[rgba(255,255,255,0.06)] text-foreground border border-border hover:bg-[rgba(255,255,255,0.1)]":
               variant === "secondary",
-            "text-foreground hover:bg-surface": variant === "ghost",
-            "bg-destructive text-white hover:bg-red-600":
+            "text-foreground hover:bg-[rgba(255,255,255,0.06)]":
+              variant === "ghost",
+            "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20":
               variant === "destructive",
           },
           {

@@ -19,7 +19,7 @@ export default function CallbackPage() {
         router.push("/login");
         return;
       }
-      router.push("/dashboard");
+      router.push("/");
     };
 
     handleCallback();
@@ -28,7 +28,7 @@ export default function CallbackPage() {
   return (
     <div className="flex flex-col items-center gap-4">
       <Spinner size="lg" />
-      <p className="text-muted text-sm">Signing you in...</p>
+      <p className="text-text-secondary text-sm">Signing you in...</p>
     </div>
   );
 }

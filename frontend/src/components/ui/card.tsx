@@ -8,7 +8,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[8px] bg-surface border border-border p-6",
+        "rounded-[12px] bg-card-bg border border-border p-6 transition-colors hover:border-border-hover",
         className,
       )}
       {...props}
@@ -39,7 +39,7 @@ export function CardDescription({
   className,
   ...props
 }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-muted", className)} {...props} />;
+  return <p className={cn("text-sm text-text-secondary", className)} {...props} />;
 }
 
 export function CardContent({
