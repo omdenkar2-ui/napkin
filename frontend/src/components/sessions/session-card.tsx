@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Link2, ExternalLink, Trash2 } from "lucide-react";
 import { EmojiPicker, EmojiPickerSearch, EmojiPickerContent } from "@/components/ui/emoji-picker";
+import { IconPicker, SESSION_ICONS } from "@/components/ui/icon-picker";
+import { SessionIcon } from "@/components/ui/session-icon";
 import { cn } from "@/lib/utils";
 
 type CardStatus = "processing" | "patterns_ready" | "spec_ready" | "no_patterns";
@@ -79,7 +81,10 @@ function MenuItem({
 
 export function SessionCard({ session, onClick, onEmojiChange, onDelete }: SessionCardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<"emoji" | "icons">("emoji");
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const [menuOpen, setMenuOpen] = useState(false);
+  const emojiRef = useRef<HTMLSpanElement>(null);
 
   return (
     <div
@@ -161,13 +166,23 @@ export function SessionCard({ session, onClick, onEmojiChange, onDelete }: Sessi
       {/* Emoji area */}
       <div className="relative">
         <span
+          ref={emojiRef}
           data-emoji="trigger"
-          className="text-[38px] leading-none cursor-pointer select-none hover:scale-110 transition-transform inline-block"
+          className="cursor-pointer hover:scale-110 transition-transform inline-flex items-center justify-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (emojiRef.current) {
+              const rect = emojiRef.current.getBoundingClientRect();
+              const clampedLeft = Math.min(rect.left, window.innerWidth - 328);
+              setPickerPos({ top: rect.bottom + 8, left: Math.max(8, clampedLeft) });
+            }
+            setPickerOpen(prev => !prev);
+            setPickerTab("emoji");
+          }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); setPickerOpen((prev) => !prev); setMenuOpen(false); }}
         >
-          {session.emoji}
+          <SessionIcon value={session.emoji} size={38} />
         </span>
         <AnimatePresence>
           {pickerOpen && (
@@ -175,27 +190,75 @@ export function SessionCard({ session, onClick, onEmojiChange, onDelete }: Sessi
               <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPickerOpen(false); }} />
               <motion.div
                 data-emoji="popover"
+                style={{ top: pickerPos.top, left: pickerPos.left, zIndex: 9999 }}
+                className="fixed rounded-xl overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.60)] bg-[#1c1c1a]"
                 initial={{ opacity: 0, scale: 0.95, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -4 }}
                 transition={{ duration: 0.12 }}
-                className="absolute top-12 left-0 z-50 rounded-xl overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.10),0_8px_32px_rgba(0,0,0,0.60)]"
                 onMouseDown={(e) => e.stopPropagation()}
                 onMouseUp={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerUp={(e) => e.stopPropagation()}
               >
-                <EmojiPicker
-                  className="h-[300px] w-[320px]"
-                  onEmojiSelect={({ emoji }) => {
-                    onEmojiChange(session.id, emoji);
-                    setPickerOpen(false);
-                  }}
-                >
-                  <EmojiPickerSearch />
-                  <EmojiPickerContent />
-                </EmojiPicker>
+                {/* Tab bar */}
+                <div className="flex items-center gap-1 px-2 pt-2 pb-1">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPickerTab("emoji"); }}
+                    className={cn(
+                      "flex-1 h-7 rounded-lg text-[12px] font-medium transition-colors",
+                      pickerTab === "emoji"
+                        ? "bg-[rgba(255,255,255,0.10)] text-[rgba(255,255,255,0.90)]"
+                        : "text-[rgba(255,255,255,0.40)] hover:text-[rgba(255,255,255,0.70)] hover:bg-[rgba(255,255,255,0.05)]"
+                    )}
+                  >
+                    Emoji
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPickerTab("icons"); }}
+                    className={cn(
+                      "flex-1 h-7 rounded-lg text-[12px] font-medium transition-colors",
+                      pickerTab === "icons"
+                        ? "bg-[rgba(255,255,255,0.10)] text-[rgba(255,255,255,0.90)]"
+                        : "text-[rgba(255,255,255,0.40)] hover:text-[rgba(255,255,255,0.70)] hover:bg-[rgba(255,255,255,0.05)]"
+                    )}
+                  >
+                    Icons
+                  </button>
+                </div>
+
+                {/* Tab content */}
+                {pickerTab === "emoji" ? (
+                  <EmojiPicker
+                    className="h-[268px] w-[320px]"
+                    onEmojiSelect={({ emoji }) => {
+                      onEmojiChange(session.id, emoji);
+                      setPickerOpen(false);
+                    }}
+                  >
+                    <EmojiPickerSearch />
+                    <EmojiPickerContent />
+                  </EmojiPicker>
+                ) : (
+                  <div
+                    className="w-[320px] h-[268px] overflow-y-auto [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: "none" }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseUp={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <IconPicker
+                      onIconSelect={(iconName) => {
+                        onEmojiChange(session.id, iconName);
+                        setPickerOpen(false);
+                      }}
+                      selectedIcon={SESSION_ICONS.find(i => i.name === session.emoji) ? session.emoji : undefined}
+                    />
+                  </div>
+                )}
               </motion.div>
             </>
           )}

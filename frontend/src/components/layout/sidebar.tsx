@@ -27,7 +27,7 @@ export function Sidebar() {
 
       {/* New session button */}
       <Link
-        href="/new"
+        href="/"
         aria-label="New session"
         className="w-10 h-10 mb-6 rounded-full bg-white flex items-center justify-center hover:opacity-80 transition-opacity"
       >
@@ -47,46 +47,6 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex flex-col items-center w-full px-2">
-        {/* Home */}
-        <Link
-          href="/"
-          className={cn(
-            "group flex flex-col items-center gap-1 py-2.5 w-full rounded-lg transition-colors",
-            isActive("/")
-              ? "bg-[rgba(255,255,255,0.06)]"
-              : "hover:bg-[rgba(255,255,255,0.03)]",
-          )}
-        >
-          <svg
-            className={cn(
-              "w-5 h-5",
-              isActive("/")
-                ? "text-[rgba(255,255,255,0.95)]"
-                : "text-[rgba(255,255,255,0.45)] group-hover:text-[rgba(255,255,255,0.8)]",
-            )}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1m-2 0h2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            className={cn(
-              "text-[10px] font-medium tracking-wide",
-              isActive("/")
-                ? "text-[rgba(255,255,255,0.85)]"
-                : "text-[rgba(255,255,255,0.35)] group-hover:text-[rgba(255,255,255,0.7)]",
-            )}
-          >
-            Home
-          </span>
-        </Link>
-
         {/* Sessions */}
         <Link
           href="/sessions"
