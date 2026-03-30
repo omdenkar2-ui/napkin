@@ -22,9 +22,9 @@ export function ShareWithProduct({
     ];
     for (const finding of findings) {
       const severity =
-        finding.severity_score >= 0.7
+        finding.severity_score >= 7
           ? "CRITICAL"
-          : finding.severity_score >= 0.4
+          : finding.severity_score >= 4
             ? "OPPORTUNITY"
             : "INSIGHT";
       lines.push(`### [${severity}] ${finding.pain_summary || finding.label}`);

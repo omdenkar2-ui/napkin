@@ -11,14 +11,14 @@ interface SendToEngineeringProps {
 }
 
 function getSeverityEmoji(score: number): string {
-  if (score >= 0.7) return "\uD83D\uDD34";
-  if (score >= 0.4) return "\uD83D\uDFE1";
+  if (score >= 7) return "\uD83D\uDD34";
+  if (score >= 4) return "\uD83D\uDFE1";
   return "\u2139\uFE0F";
 }
 
 function getSeverityLabel(score: number): string {
-  if (score >= 0.7) return "Critical";
-  if (score >= 0.4) return "Opportunity";
+  if (score >= 7) return "Critical";
+  if (score >= 4) return "Opportunity";
   return "Insight";
 }
 
@@ -41,7 +41,7 @@ export function SendToEngineering({
       );
       if (finding.evidence_quotes.length > 0) {
         lines.push(
-          `  Evidence: "${finding.evidence_quotes[0].text.substring(0, 100)}..."`,
+          `  Evidence: "${finding.evidence_quotes[0]?.substring(0, 100)}..."`,
         );
       }
       lines.push(
@@ -94,7 +94,7 @@ export function SendToEngineering({
       <div className="flex flex-wrap gap-2 mt-4">
         <Badge variant="error">Priority: High</Badge>
         <Badge variant="default">Sprint: this week</Badge>
-        {findings.some((f) => f.severity_score >= 0.7) && (
+        {findings.some((f) => f.severity_score >= 7) && (
           <Badge variant="accent">{findings.length} agent prompts</Badge>
         )}
       </div>

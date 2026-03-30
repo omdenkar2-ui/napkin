@@ -21,14 +21,17 @@ export function PatternList({
 
   return (
     <div className="space-y-3">
-      {sorted.map((cluster) => (
-        <PatternCard
-          key={cluster.id}
-          cluster={cluster}
-          selected={selectedIds.has(cluster.id)}
-          onToggle={() => onToggle(cluster.id)}
-        />
-      ))}
+      {sorted.map((cluster, i) => {
+        const clusterId = cluster.id ?? String(cluster.cluster_id ?? i);
+        return (
+          <PatternCard
+            key={clusterId}
+            cluster={cluster}
+            selected={selectedIds.has(clusterId)}
+            onToggle={() => onToggle(clusterId)}
+          />
+        );
+      })}
     </div>
   );
 }

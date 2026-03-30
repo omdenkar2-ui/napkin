@@ -195,14 +195,17 @@ export interface Ticket {
 
 // Pattern Report
 export interface PatternCluster {
-  id: string;
+  id?: string;
+  cluster_id?: number;
   label: string;
   pain_summary: string;
   frequency: number;
-  severity_score: number;
-  confidence: number;
-  evidence_quotes: Array<{ text: string; signal_id: string }>;
+  severity_score: number; // 0-10 scale
+  confidence: number; // 0-1
+  evidence_quotes: string[];
   signal_ids: string[];
+  affected_segments?: string[];
+  recommended_action?: string;
 }
 
 export interface PatternReport {
@@ -210,8 +213,11 @@ export interface PatternReport {
   top_pains: string[];
   contradictions: Array<Record<string, unknown>>;
   segments_found: string[];
-  total_signals_analyzed: number;
-  confidence_summary: string;
+  total_items_analyzed: number;
+  data_quality?: Record<string, unknown>;
+  critical_issues?: Array<Record<string, unknown>>;
+  valuable_insights?: Array<Record<string, unknown>>;
+  future_opportunities?: Array<Record<string, unknown>>;
 }
 
 // Prioritization

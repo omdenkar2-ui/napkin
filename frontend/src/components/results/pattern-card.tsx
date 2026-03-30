@@ -7,8 +7,8 @@ import type { PatternCluster } from "@/types/api";
 type Severity = "critical" | "opportunity" | "insight";
 
 function getSeverity(score: number): Severity {
-  if (score >= 0.7) return "critical";
-  if (score >= 0.4) return "opportunity";
+  if (score >= 7) return "critical";
+  if (score >= 4) return "opportunity";
   return "insight";
 }
 
