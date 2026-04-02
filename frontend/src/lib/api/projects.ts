@@ -17,7 +17,7 @@ export async function updateProject(
   projectId: string,
   data: Partial<ProjectCreate>,
 ): Promise<Project> {
-  return api.put<Project>(`/projects/${projectId}`, data);
+  return api.patch<Project>(`/projects/${projectId}`, data);
 }
 
 export async function deleteProject(projectId: string): Promise<void> {

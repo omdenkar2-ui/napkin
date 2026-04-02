@@ -7,6 +7,7 @@ import {
   sendMessage,
   addFeedback,
 } from "@/lib/api/sessions";
+import { ApiError } from "@/lib/api/client";
 import { STAGES } from "@/types/session";
 import { toast } from "sonner";
 
@@ -19,12 +20,12 @@ const STAGE_LABELS: Record<string, string> = {
   spec_building: "Building recommendations...",
   spec_qa: "Running quality checks...",
   task_planning: "Creating action plan...",
-  export: "Preparing results...",
+  review: "Reviewing results...",
   done: "Analysis complete",
   error: "Something went wrong",
 };
 
-const SLOW_STAGES = ["synthesis", "spec_building", "task_planning", "export"];
+const SLOW_STAGES = ["synthesis", "spec_building", "task_planning"];
 
 export function useSession(sessionId: string) {
   const [sending, setSending] = useState(false);
@@ -41,6 +42,10 @@ export function useSession(sessionId: string) {
     queryFn: () => getSession(sessionId),
     staleTime: 0,
     gcTime: 0,
+    retry: (failureCount, err) => {
+      if (err instanceof ApiError && (err.status === 404 || err.status === 403)) return false;
+      return failureCount < 2;
+    },
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return 2000;

@@ -9,7 +9,7 @@ export type SessionStage =
   | "spec_building"
   | "spec_qa"
   | "task_planning"
-  | "export"
+  | "review"
   | "done"
   | "error";
 

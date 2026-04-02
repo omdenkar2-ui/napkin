@@ -19,7 +19,7 @@ function deriveCardStatus(stage: SessionStage): SessionCardSession["status"] {
     stage === "spec_building" ||
     stage === "spec_qa" ||
     stage === "task_planning" ||
-    stage === "export"
+    stage === "review"
   ) {
     return "patterns_ready";
   }

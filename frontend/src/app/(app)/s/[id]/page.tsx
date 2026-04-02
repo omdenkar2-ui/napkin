@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useSession } from "@/hooks/use-session";
 import { Spinner } from "@/components/ui/spinner";
 import { SessionChatWidget } from "@/components/chat/session-chat-widget";
+import { ApiError } from "@/lib/api/client";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 
@@ -141,9 +142,57 @@ function PatternCard({ cluster, rank, onGenerateSpec }: { cluster: any; rank: nu
   );
 }
 
+/* ─── STATE 0: Not Found ─────────────────────────────────────── */
+
+function NotFoundState() {
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <div className="flex flex-col items-center text-center max-w-[360px]">
+        <svg className="w-12 h-12 text-text-ghost" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75l-2.489-2.489m0 0a3.375 3.375 0 10-4.773-4.773 3.375 3.375 0 004.774 4.774zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-[16px] font-medium text-foreground mt-4">Session not found</p>
+        <p className="text-[14px] text-text-secondary mt-2">
+          This session doesn&apos;t exist or may have been deleted.
+        </p>
+        <Link
+          href="/"
+          className="mt-4 inline-flex items-center gap-1 text-[13px] text-text-secondary hover:text-foreground transition-colors"
+        >
+          ← Back to home
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ─── STATE 0b: Connection Error ─────────────────────────────── */
+
+function ConnectionErrorState() {
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <div className="flex flex-col items-center text-center max-w-[360px]">
+        <svg className="w-12 h-12 text-accent-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <p className="text-[16px] font-medium text-foreground mt-4">Connection error</p>
+        <p className="text-[14px] text-text-secondary mt-2">
+          Cannot reach the server. Please check that the backend is running and try again.
+        </p>
+        <Link
+          href="/"
+          className="mt-4 inline-flex items-center gap-1 text-[13px] text-text-secondary hover:text-foreground transition-colors"
+        >
+          ← Back to home
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /* ─── STATE 1: Processing ────────────────────────────────────── */
 
-function ProcessingState({ userFacingStatus }: { userFacingStatus: string }) {
+function ProcessingState({ userFacingStatus, progressPct }: { userFacingStatus: string; progressPct: number }) {
   return (
     <div className="min-h-[70vh] flex items-center justify-center">
       <div className="flex flex-col items-center max-w-[400px] w-full px-4">
@@ -163,15 +212,21 @@ function ProcessingState({ userFacingStatus }: { userFacingStatus: string }) {
           {userFacingStatus}
         </p>
 
-        {/* Animated dots */}
-        <div className="flex gap-1.5 mt-6 justify-center">
-          <span className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
-          <span className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse [animation-delay:300ms]" />
-          <span className="w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse [animation-delay:600ms]" />
+        {/* Progress bar */}
+        <div className="w-full mt-6">
+          <div className="h-1 w-full bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white/70 rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${Math.max(progressPct, 5)}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-text-ghost text-center mt-2">
+            {progressPct}% complete
+          </p>
         </div>
 
         {/* Reassurance */}
-        <p className="text-[13px] text-text-ghost mt-8 text-center">
+        <p className="text-[13px] text-text-ghost mt-6 text-center">
           This usually takes 30–60 seconds.
         </p>
       </div>
@@ -517,7 +572,7 @@ function NoPatternsState() {
 
 export default function SessionViewPage() {
   const params = useParams<{ id: string }>();
-  const { session, isLoading, isProcessing, userFacingStatus } = useSession(params.id);
+  const { session, isLoading, error, isProcessing, userFacingStatus, progressPct } = useSession(params.id);
   const [showSpec, setShowSpec] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedCluster, setSelectedCluster] = useState<any>(null);
@@ -546,6 +601,16 @@ export default function SessionViewPage() {
     );
   }
 
+  /* Fetch error — session not found or backend unreachable */
+  if (error && !session) {
+    const isNotFound = (error instanceof ApiError && error.status === 404) || (error instanceof Error && error.message?.includes("404"));
+    return (
+      <div className="max-w-[800px] mx-auto p-8">
+        {isNotFound ? <NotFoundState /> : <ConnectionErrorState />}
+      </div>
+    );
+  }
+
   /* Error */
   if (session?.stage === "error") {
     return (
@@ -565,7 +630,7 @@ export default function SessionViewPage() {
     return (
       <>
         <div className="max-w-[800px] mx-auto p-8">
-          <ProcessingState userFacingStatus={userFacingStatus} />
+          <ProcessingState userFacingStatus={userFacingStatus} progressPct={progressPct} />
         </div>
         <div className="fixed bottom-6 right-6 z-50">
           <SessionChatWidget />

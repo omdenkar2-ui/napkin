@@ -25,11 +25,16 @@ async function request<T>(
     ...(customHeaders as Record<string, string>),
   };
 
-  const response = await fetch(`${API_BASE}/api/v1${path}`, {
-    ...rest,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/v1${path}`, {
+      ...rest,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "Cannot connect to the server. Please check that the backend is running.");
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
@@ -53,10 +58,15 @@ async function uploadFile<T>(
   const queryString = params
     ? "?" + new URLSearchParams(params).toString()
     : "";
-  const response = await fetch(`${API_BASE}/api/v1${path}${queryString}`, {
-    method: "POST",
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/v1${path}${queryString}`, {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    throw new ApiError(0, "Cannot connect to the server. Please check that the backend is running.");
+  }
 
   if (!response.ok) {
     const error = await response

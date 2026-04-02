@@ -102,7 +102,7 @@ export async function getExportPrd(
 export async function uploadFeedbackFile(
   projectId: string,
   file: File,
-): Promise<{ id: string; filename: string; items_extracted: number }> {
+): Promise<{ items_created: number; items_skipped: number; source_id: string | null; session_id: string | null }> {
   return api.upload("/feedback/upload", file, { project_id: projectId });
 }
 
@@ -114,8 +114,7 @@ export async function pasteFeedback(
   projectId: string,
   texts: string[],
 ): Promise<{ items_created: number }> {
-  return api.post("/feedback/paste", {
-    project_id: projectId,
+  return api.post(`/feedback/paste?project_id=${projectId}`, {
     texts,
   });
 }

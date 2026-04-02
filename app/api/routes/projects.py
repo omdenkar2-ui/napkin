@@ -109,6 +109,17 @@ async def update_project(
     return result.data[0] if result.data else {}
 
 
+@projects_router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Delete a project."""
+    db = get_supabase_admin()
+    _verify_project_access(db, project_id, user)
+    db.table("projects").delete().eq("id", str(project_id)).execute()
+
+
 # ============================================================
 # FEEDBACK
 # ============================================================

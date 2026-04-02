@@ -313,7 +313,7 @@ async def get_exports(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    exports = session.get("exports")
+    exports = (session.get("gate_results") or {}).get("exports")
     if not exports:
         raise HTTPException(
             status_code=404,
@@ -339,7 +339,7 @@ async def get_export_tickets(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    tickets = (session.get("exports") or {}).get("tickets", [])
+    tickets = ((session.get("gate_results") or {}).get("exports") or {}).get("tickets", [])
     if not tickets:
         raise HTTPException(status_code=404, detail="No tickets available")
 
@@ -380,7 +380,7 @@ async def get_export_prd(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    prd_url = (session.get("exports") or {}).get("prd_url")
+    prd_url = ((session.get("gate_results") or {}).get("exports") or {}).get("prd_url")
     if prd_url:
         return {"prd_url": prd_url, "expires_in": "24 hours"}
 
