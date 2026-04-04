@@ -95,7 +95,7 @@ export function SendToEngineering({
         <Badge variant="error">Priority: High</Badge>
         <Badge variant="default">Sprint: this week</Badge>
         {findings.some((f) => f.severity_score >= 7) && (
-          <Badge variant="accent">{findings.length} agent prompts</Badge>
+          <Badge variant="insight">{findings.length} agent prompts</Badge>
         )}
       </div>
 

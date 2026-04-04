@@ -36,3 +36,9 @@ htmlcov/
 
 # Docker
 docker-compose.override.yml
+
+# Node
+node_modules/
+
+# Claude Code
+.claude/
