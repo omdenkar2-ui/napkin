@@ -16,7 +16,7 @@ from tests.conftest import make_mock_react_llm, make_repo_files
 
 def test_detect_stack_nextjs():
     """package.json with 'next' dep should detect Next.js."""
-    from app.services.agents.final.repo_context import detect_stack
+    from app.services.agents.repo_context import detect_stack
 
     files = {
         "package.json": json.dumps({
@@ -44,7 +44,7 @@ async def test_entity_extraction():
         ]
     })
 
-    from app.services.agents.final.repo_context import extract_entities
+    from app.services.agents.repo_context import extract_entities
     model_files = {"src/models/user.ts": "export interface User { id: string; }"}
     entities = await extract_entities(model_files, mock_llm)
 
@@ -66,7 +66,7 @@ async def test_route_extraction():
         ]
     })
 
-    from app.services.agents.final.repo_context import extract_routes
+    from app.services.agents.repo_context import extract_routes
     route_files = {"src/routes/api.ts": "router.get('/users', getUsers)"}
     routes = await extract_routes(route_files, mock_llm)
 
@@ -81,7 +81,7 @@ async def test_route_extraction():
 @pytest.mark.asyncio
 async def test_empty_repo_minimal_pack():
     """Empty repo_files should return a minimal context pack."""
-    from app.services.agents.final.repo_context import run_repo_context
+    from app.services.agents.repo_context import run_repo_context
     result = await run_repo_context({})
 
     assert result["stack"] == {}

@@ -1,8 +1,7 @@
-"""Tests for the Intake Structurer agent (Agent 1)."""
+"""Tests for the Intake Structurer agent — extract_signals(raw_texts) -> list[dict]."""
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,7 +15,7 @@ from tests.conftest import make_feedback_texts, make_mock_react_llm
 
 @pytest.mark.asyncio
 async def test_basic_intake_produces_signals():
-    """3 feedback texts should produce structured signals."""
+    """3 feedback texts should produce structured signals via extract_signals."""
     signals = [
         {"pain": "Slow loading", "request": "Faster dashboard", "emotion": "frustrated",
          "context": "enterprise", "jtbd_hint": "Complete reports", "segment_guess": "power-user",
@@ -31,70 +30,92 @@ async def test_basic_intake_produces_signals():
 
     mock_llm = make_mock_react_llm({"signals": signals, "count": 3})
 
-    with patch("app.services.agents.mvp.intake.get_fast_llm", return_value=mock_llm):
-        from app.services.agents.mvp.intake import intake_structurer_node
-        state = {"raw_texts": make_feedback_texts(3), "feedback_items": [], "messages": []}
-        result = await intake_structurer_node(state)
+    with patch("app.services.agents.intake.get_fast_llm", return_value=mock_llm), \
+         patch("app.services.agents.intake.get_embeddings"):
+        from app.services.agents.intake import extract_signals
+        result = await extract_signals(make_feedback_texts(3))
 
-    assert len(result.get("feedback_items", [])) >= 3
-
-
-# ============================================================
-# Test 2: Empty input returns prompt for more feedback
-# ============================================================
-
-@pytest.mark.asyncio
-async def test_empty_input_asks_for_feedback():
-    """No raw_texts should prompt user for feedback."""
-    from app.services.agents.mvp.intake import intake_structurer_node
-    state = {"raw_texts": [], "feedback_items": [], "messages": []}
-    result = await intake_structurer_node(state)
-
-    assert result.get("pending_questions")
-    assert len(result.get("feedback_items", [])) == 0
+    # Returns list[dict] directly, not a state dict
+    assert isinstance(result, list)
+    assert len(result) >= 3
 
 
 # ============================================================
-# Test 3: Existing items are preserved
+# Test 2: Empty input returns empty list
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_existing_items_preserved():
-    """New signals append to existing feedback_items."""
-    new_signals = [
-        {"pain": "Bug", "request": "Fix", "emotion": "angry",
-         "context": "enterprise", "jtbd_hint": "Work correctly",
-         "segment_guess": "power-user", "raw_text_snippet": "Bug found", "confidence": 0.9},
+async def test_empty_input_returns_empty_list():
+    """No raw_texts should return an empty list."""
+    from app.services.agents.intake import extract_signals
+    result = await extract_signals([])
+
+    assert isinstance(result, list)
+    assert len(result) == 0
+
+
+# ============================================================
+# Test 3: Deduplication removes near-duplicates
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_deduplication_reduces_signals():
+    """Duplicate feedback texts should be deduplicated."""
+    # LLM returns 3 signals with duplicate pain/request pairs
+    signals = [
+        {"pain": "Slow dashboard", "request": "Make it faster", "emotion": "frustrated",
+         "context": "enterprise", "jtbd_hint": "Work efficiently", "segment_guess": "power-user",
+         "raw_text_snippet": "Dashboard is slow", "confidence": 0.9},
+        {"pain": "Slow dashboard", "request": "Make it faster", "emotion": "frustrated",
+         "context": "enterprise", "jtbd_hint": "Work efficiently", "segment_guess": "power-user",
+         "raw_text_snippet": "Dashboard loads slowly", "confidence": 0.85},
+        {"pain": "No PDF export", "request": "Add PDF export", "emotion": "annoyed",
+         "context": "enterprise", "jtbd_hint": "Share reports", "segment_guess": "power-user",
+         "raw_text_snippet": "Need PDF", "confidence": 0.8},
     ]
 
-    mock_llm = make_mock_react_llm({"signals": new_signals, "count": 1})
-    existing = [{"id": "existing-1", "pain": "Old pain"}]
+    mock_llm = make_mock_react_llm({"signals": signals, "count": 3})
 
-    with patch("app.services.agents.mvp.intake.get_fast_llm", return_value=mock_llm):
-        from app.services.agents.mvp.intake import intake_structurer_node
-        state = {"raw_texts": ["Bug found"], "feedback_items": existing, "messages": []}
-        result = await intake_structurer_node(state)
+    # Mock embeddings to simulate near-identical vectors for the first two signals
+    import numpy as np
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed_documents.return_value = [
+        [1.0, 0.0, 0.0],  # signal 0
+        [0.999, 0.01, 0.0],  # signal 1 — nearly identical to 0
+        [0.0, 1.0, 0.0],  # signal 2 — different
+    ]
 
-    items = result.get("feedback_items", [])
-    assert len(items) >= 2  # existing + new
+    with patch("app.services.agents.intake.get_fast_llm", return_value=mock_llm), \
+         patch("app.services.agents.intake.get_embeddings", return_value=mock_embeddings):
+        from app.services.agents.intake import extract_signals
+        result = await extract_signals(["Dashboard is slow", "Dashboard loads slowly", "Need PDF"])
+
+    # Dedup should remove one of the near-duplicate signals
+    assert isinstance(result, list)
+    assert len(result) < 3
 
 
 # ============================================================
-# Test 4: LLM returns garbage → graceful fallback
+# Test 4: LLM returns garbage — graceful fallback
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_llm_garbage_returns_graceful():
-    """If LLM returns unparseable output, node should not crash."""
-    mock_llm = make_mock_react_llm("This is not valid at all!!!")
+async def test_llm_error_returns_fallback():
+    """If LLM raises an exception, should produce raw fallback signals."""
+    mock_llm = MagicMock()
+    structured_mock = MagicMock()
+    structured_mock.ainvoke = AsyncMock(side_effect=Exception("LLM parse error"))
+    mock_llm.with_structured_output.return_value = structured_mock
 
-    with patch("app.services.agents.mvp.intake.get_fast_llm", return_value=mock_llm):
-        from app.services.agents.mvp.intake import intake_structurer_node
-        state = {"raw_texts": ["Some feedback"], "feedback_items": [], "messages": []}
-        result = await intake_structurer_node(state)
+    with patch("app.services.agents.intake.get_fast_llm", return_value=mock_llm):
+        from app.services.agents.intake import extract_signals
+        result = await extract_signals(["Some feedback"])
 
-    # Should not crash — may return empty or partial items
-    assert isinstance(result, dict)
+    # Should not crash — returns fallback signals (one per input text)
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    # Fallback signals have low confidence
+    assert result[0].get("confidence", 1.0) <= 0.5
 
 
 # ============================================================
@@ -113,13 +134,13 @@ async def test_batch_processing():
 
     mock_llm = make_mock_react_llm({"signals": many_signals, "count": 10})
 
-    with patch("app.services.agents.mvp.intake.get_fast_llm", return_value=mock_llm):
-        from app.services.agents.mvp.intake import intake_structurer_node
-        state = {
-            "raw_texts": [f"Feedback text {i}" for i in range(10)],
-            "feedback_items": [],
-            "messages": [],
-        }
-        result = await intake_structurer_node(state)
+    with patch("app.services.agents.intake.get_fast_llm", return_value=mock_llm), \
+         patch("app.services.agents.intake.get_embeddings"):
+        from app.services.agents.intake import extract_signals
+        result = await extract_signals([f"Feedback text {i}" for i in range(10)])
 
-    assert len(result.get("feedback_items", [])) >= 1
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    # Each signal should have a feedback_item_id assigned
+    for signal in result:
+        assert "feedback_item_id" in signal

@@ -1,175 +1,332 @@
-"""Tests for the MVP Orchestrator (9-stage pipeline)."""
+"""Tests for the Pipeline Orchestrator — run_pipeline() and run_pipeline_from_stored_feedback()."""
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from tests.conftest import (
     make_four_q_answers,
-    make_mock_react_llm,
     make_pattern_report,
-    make_repo_files,
     make_signals,
     make_spec,
 )
 
 
 # ============================================================
-# Test 1: Graph builds with correct 10 nodes
+# Helpers
 # ============================================================
 
-def test_graph_builds():
-    """Graph should build with 10 nodes (9 stages + handle_error)."""
-    from app.services.agents.mvp.orchestrator import build_session_graph
-    graph = build_session_graph()
+def _mock_supabase_admin():
+    """Create a mock Supabase admin client for orchestrator DB operations."""
+    db = MagicMock()
+    chain = MagicMock()
+    chain.update.return_value = chain
+    chain.select.return_value = chain
+    chain.eq.return_value = chain
+    chain.in_.return_value = chain
+    chain.single.return_value = chain
+    chain.order.return_value = chain
+    chain.limit.return_value = chain
 
-    node_names = set(graph.nodes.keys())
-    expected = {
-        "intake", "synthesis", "prioritization", "four_questions",
-        "repo_context", "spec_building", "spec_qa", "task_planning",
-        "done", "handle_error",
-    }
-    assert expected.issubset(node_names)
+    # Default: session trigger is "manual"
+    result = MagicMock()
+    result.data = {"trigger": "manual"}
+    chain.execute.return_value = result
+
+    db.table.return_value = chain
+    return db
+
+
+def _start_patches(patch_dict: dict) -> list:
+    """Start a dict of patch-target -> mock and return the context managers."""
+    cms = [patch(k, v) for k, v in patch_dict.items()]
+    for cm in cms:
+        cm.start()
+    return cms
+
+
+def _stop_patches(cms: list) -> None:
+    """Stop a list of patch context managers."""
+    for cm in cms:
+        cm.stop()
 
 
 # ============================================================
-# Test 2: intake_node auto-advances with enough items
+# Test 1: Full pipeline happy path
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_intake_advances_to_synthesis():
-    """Intake with >=3 items should auto-advance to synthesis."""
-    mock_llm = make_mock_react_llm({
-        "signals": [
-            {"pain": f"Pain {i}", "request": f"Req {i}", "emotion": "neutral",
-             "context": "enterprise", "jtbd_hint": "Work", "segment_guess": "user",
-             "raw_text_snippet": f"Text {i}", "confidence": 0.8}
-            for i in range(5)
-        ]
+async def test_run_pipeline_happy_path():
+    """Full pipeline should call all agents and complete without errors."""
+    db = _mock_supabase_admin()
+
+    agent_mocks = {
+        "app.services.agents.intake.extract_signals":
+            AsyncMock(return_value=make_signals(5)),
+        "app.services.agents.synthesis.synthesize_patterns":
+            AsyncMock(return_value=make_pattern_report()),
+        "app.services.agents.prioritizer.run_prioritizer":
+            AsyncMock(return_value={"opportunities": [{"title": "PDF export"}]}),
+        "app.services.agents.socratic.infer_strategic_context":
+            AsyncMock(return_value=make_four_q_answers(complete=True)),
+        "app.services.agents.spec_builder.build_spec":
+            AsyncMock(return_value=make_spec()),
+        "app.services.agents.task_planner.run_task_planner":
+            AsyncMock(return_value={"tasks": [{"id": "t1", "title": "Task 1"}]}),
+        "app.services.export.export_service.run_export":
+            AsyncMock(return_value={"exports": {"markdown": "# Report"}}),
+        "app.services.agents.memory.store_decision":
+            AsyncMock(return_value=None),
+        "app.services.actions.generator.generate_actions_for_session":
+            AsyncMock(return_value=None),
+    }
+
+    infra_mocks = {
+        "app.db.client.get_supabase_admin": MagicMock(return_value=db),
+        "app.services.agents.orchestrator._load_repo_context": AsyncMock(return_value=None),
+        "app.services.agents.orchestrator._load_business_context": AsyncMock(return_value=None),
+        "app.services.session_lifecycle.get_resolved_patterns": AsyncMock(return_value=[]),
+    }
+
+    all_patches = {**agent_mocks, **infra_mocks}
+    cms = _start_patches(all_patches)
+
+    try:
+        from app.services.agents.orchestrator import run_pipeline
+        await run_pipeline(
+            session_id="sess-1",
+            project_id="proj-1",
+            user_id="user-1",
+            raw_texts=["Dashboard is slow", "Need PDF export", "Onboarding is confusing"],
+        )
+    finally:
+        _stop_patches(cms)
+
+    # Verify all sub-agents were called
+    agent_mocks["app.services.agents.intake.extract_signals"].assert_awaited_once()
+    agent_mocks["app.services.agents.synthesis.synthesize_patterns"].assert_awaited_once()
+    agent_mocks["app.services.agents.prioritizer.run_prioritizer"].assert_awaited_once()
+    agent_mocks["app.services.agents.socratic.infer_strategic_context"].assert_awaited_once()
+    agent_mocks["app.services.agents.spec_builder.build_spec"].assert_awaited_once()
+    agent_mocks["app.services.agents.task_planner.run_task_planner"].assert_awaited_once()
+
+    # DB should have been updated
+    db.table.assert_called()
+
+
+# ============================================================
+# Test 2: Pipeline handles empty signals gracefully
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_pipeline_empty_signals_completes_early():
+    """If intake returns no signals, pipeline should complete early."""
+    db = _mock_supabase_admin()
+
+    empty_intake = AsyncMock(return_value=[])
+
+    cms = _start_patches({
+        "app.db.client.get_supabase_admin": MagicMock(return_value=db),
+        "app.services.agents.intake.extract_signals": empty_intake,
+        "app.services.agents.orchestrator._load_repo_context": AsyncMock(return_value=None),
+        "app.services.agents.orchestrator._load_business_context": AsyncMock(return_value=None),
     })
 
-    with patch("app.services.agents.mvp.intake.get_fast_llm", return_value=mock_llm), \
-         patch("app.services.agents.final.memory.retrieve_context", new_callable=AsyncMock, return_value={}):
-        from app.services.agents.mvp.orchestrator import intake_node
-        state = {
-            "raw_texts": ["feedback 1", "feedback 2", "feedback 3"],
-            "feedback_items": [],
-            "messages": [],
-            "project_id": "proj-1",
-            "stage_history": [],
-        }
-        result = await intake_node(state)
+    try:
+        from app.services.agents.orchestrator import run_pipeline
+        await run_pipeline(
+            session_id="sess-2",
+            project_id="proj-1",
+            user_id="user-1",
+            raw_texts=[],
+        )
+    finally:
+        _stop_patches(cms)
 
-    assert result.get("stage") == "synthesis"
+    # Intake was called
+    empty_intake.assert_awaited_once()
+
+    # Pipeline should have set stage="done" with a message
+    update_calls = [
+        str(call) for call in db.table.return_value.update.call_args_list
+    ]
+    assert any("done" in str(c) or "completed" in str(c) for c in update_calls)
 
 
 # ============================================================
-# Test 3: synthesis_node advances to prioritization
+# Test 3: Pipeline catches and logs errors
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_synthesis_advances_to_prioritization():
-    """Synthesis with pattern_report should advance to prioritization."""
-    mock_llm = make_mock_react_llm({
-        "clusters": [
-            {"id": "c1", "label": "Theme 1", "pain_summary": "Pain 1",
-             "frequency": 10, "severity": 8.0, "confidence": 0.9,
-             "urgency": "high", "evidence_quotes": [{"text": "Q1", "signal_id": "s1"}],
-             "signal_ids": ["s1"]},
-        ],
-        "top_pains": ["Theme 1"],
-        "segments_found": ["power-user"],
-        "contradictions": [],
-        "total_signals_analyzed": 5,
-        "confidence_summary": "High.",
+async def test_pipeline_catches_agent_errors():
+    """If a sub-agent raises, pipeline should catch and set error status."""
+    db = _mock_supabase_admin()
+
+    failing_intake = AsyncMock(side_effect=RuntimeError("LLM exploded"))
+
+    cms = _start_patches({
+        "app.db.client.get_supabase_admin": MagicMock(return_value=db),
+        "app.services.agents.intake.extract_signals": failing_intake,
+        "app.services.agents.orchestrator._load_repo_context": AsyncMock(return_value=None),
+        "app.services.agents.orchestrator._load_business_context": AsyncMock(return_value=None),
     })
 
-    with patch("app.services.agents.mvp.synthesis.get_strong_llm", return_value=mock_llm):
-        from app.services.agents.mvp.orchestrator import synthesis_node
-        state = {
-            "feedback_items": make_signals(5),
-            "messages": [],
-            "stage_history": [],
-        }
-        result = await synthesis_node(state)
+    try:
+        from app.services.agents.orchestrator import run_pipeline
+        await run_pipeline(
+            session_id="sess-3",
+            project_id="proj-1",
+            user_id="user-1",
+            raw_texts=["Some feedback"],
+        )
+    finally:
+        _stop_patches(cms)
 
-    assert result.get("stage") == "prioritization"
+    # Should have called _update with stage="error"
+    update_calls = [
+        str(call) for call in db.table.return_value.update.call_args_list
+    ]
+    assert any("error" in str(c) for c in update_calls)
 
 
 # ============================================================
-# Test 4: spec_qa_node blocks on failure
+# Test 4: run_pipeline_from_stored_feedback — happy path
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_spec_qa_blocks_on_failure():
-    """Spec QA with errors should stay at spec_qa stage with questions."""
-    from app.services.agents.mvp.orchestrator import spec_qa_node
+async def test_run_pipeline_from_stored_feedback():
+    """Should pull feedback_items from DB and run the full pipeline."""
+    db = _mock_supabase_admin()
 
-    bad_spec = make_spec()
-    bad_spec["cursor_prompt"] = "improve everything and optimize it"
+    # Build a chain that handles both feedback_items queries and sessions queries
+    feedback_chain = MagicMock()
+    feedback_chain.select.return_value = feedback_chain
+    feedback_chain.eq.return_value = feedback_chain
+    feedback_chain.order.return_value = feedback_chain
+    feedback_chain.limit.return_value = feedback_chain
+    feedback_chain.update.return_value = feedback_chain
+    feedback_chain.in_.return_value = feedback_chain
 
-    state = {
-        "spec_object": bad_spec,
-        "four_q_answers": make_four_q_answers(),
-        "repo_context": None,
-        "messages": [],
-        "stage_history": [],
+    feedback_result = MagicMock()
+    feedback_result.data = [
+        {"id": "fb-1", "raw_text": "Dashboard is slow"},
+        {"id": "fb-2", "raw_text": "Need PDF export"},
+    ]
+    feedback_chain.execute.return_value = feedback_result
+
+    # Default session chain (for _update, _save, session trigger lookup)
+    session_chain = MagicMock()
+    session_chain.update.return_value = session_chain
+    session_chain.select.return_value = session_chain
+    session_chain.eq.return_value = session_chain
+    session_chain.single.return_value = session_chain
+    session_result = MagicMock()
+    session_result.data = {"trigger": "manual"}
+    session_chain.execute.return_value = session_result
+
+    def _route_table(name):
+        if name == "feedback_items":
+            return feedback_chain
+        return session_chain
+
+    db.table.side_effect = _route_table
+
+    agent_mocks = {
+        "app.services.agents.intake.extract_signals":
+            AsyncMock(return_value=make_signals(2)),
+        "app.services.agents.synthesis.synthesize_patterns":
+            AsyncMock(return_value=make_pattern_report()),
+        "app.services.agents.prioritizer.run_prioritizer":
+            AsyncMock(return_value={"opportunities": []}),
+        "app.services.agents.socratic.infer_strategic_context":
+            AsyncMock(return_value=make_four_q_answers(complete=True)),
+        "app.services.agents.spec_builder.build_spec":
+            AsyncMock(return_value=make_spec()),
+        "app.services.agents.task_planner.run_task_planner":
+            AsyncMock(return_value={"tasks": []}),
+        "app.services.export.export_service.run_export":
+            AsyncMock(return_value={"exports": {}}),
+        "app.services.agents.memory.store_decision":
+            AsyncMock(return_value=None),
+        "app.services.actions.generator.generate_actions_for_session":
+            AsyncMock(return_value=None),
     }
-    result = await spec_qa_node(state)
 
-    assert result.get("stage") == "spec_qa"
-    assert result.get("spec_qa_report", {}).get("passed") is False
-
-
-# ============================================================
-# Test 5: repo_context_node without files skips
-# ============================================================
-
-@pytest.mark.asyncio
-async def test_repo_context_skips_without_files():
-    """No repo_files should skip to spec_building."""
-    from app.services.agents.mvp.orchestrator import repo_context_node
-
-    state = {
-        "repo_files": {},
-        "messages": [],
-        "stage_history": [],
+    infra_mocks = {
+        "app.db.client.get_supabase_admin": MagicMock(return_value=db),
+        "app.services.agents.orchestrator._load_repo_context": AsyncMock(return_value=None),
+        "app.services.agents.orchestrator._load_business_context": AsyncMock(return_value=None),
+        "app.services.session_lifecycle.get_resolved_patterns": AsyncMock(return_value=[]),
     }
-    result = await repo_context_node(state)
 
-    assert result.get("stage") == "spec_building"
-    assert result.get("repo_context") is None
+    all_patches = {**agent_mocks, **infra_mocks}
+    cms = _start_patches(all_patches)
+
+    try:
+        from app.services.agents.orchestrator import run_pipeline_from_stored_feedback
+        result = await run_pipeline_from_stored_feedback(
+            project_id="proj-1",
+            session_id="sess-4",
+        )
+    finally:
+        _stop_patches(cms)
+
+    assert result.get("processed") == 2
+    assert result.get("session_id") == "sess-4"
 
 
 # ============================================================
-# Test 6: task_planning_node completes session
+# Test 5: run_pipeline_from_stored_feedback — no feedback
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_task_planning_completes():
-    """Task planning should advance to export stage with sprint_plan."""
-    mock_llm = make_mock_react_llm({
-        "tasks": [
-            {"id": "t1", "title": "Task 1", "type": "BE",
-             "estimate_hours": 4, "dependencies": [],
-             "acceptance_criteria": ["Done"]},
-        ]
-    })
+async def test_stored_feedback_no_data():
+    """No feedback_items should return error dict."""
+    db = _mock_supabase_admin()
 
-    with patch("app.core.llm.get_strong_llm", return_value=mock_llm), \
-         patch("app.services.agents.final.memory.store_decision", new_callable=AsyncMock, return_value={}):
-        from app.services.agents.mvp.orchestrator import task_planning_node
-        state = {
-            "spec_object": make_spec(),
-            "messages": [],
-            "stage_history": [],
-            "project_id": "proj-1",
-            "session_id": "sess-1",
-        }
-        result = await task_planning_node(state)
+    # Mock empty feedback_items query
+    feedback_chain = MagicMock()
+    feedback_chain.select.return_value = feedback_chain
+    feedback_chain.eq.return_value = feedback_chain
+    feedback_chain.order.return_value = feedback_chain
+    feedback_chain.limit.return_value = feedback_chain
 
-    assert result.get("stage") == "export"
-    assert result.get("sprint_plan")
+    empty_result = MagicMock()
+    empty_result.data = []
+    feedback_chain.execute.return_value = empty_result
+
+    db.table.return_value = feedback_chain
+
+    with patch("app.db.client.get_supabase_admin", return_value=db):
+        from app.services.agents.orchestrator import run_pipeline_from_stored_feedback
+        result = await run_pipeline_from_stored_feedback(
+            project_id="proj-1",
+            session_id="sess-5",
+        )
+
+    assert result.get("error")
+    assert "No new feedback" in result["error"]
+
+
+# ============================================================
+# Test 6: start_pipeline_background creates asyncio task
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_start_pipeline_background():
+    """start_pipeline_background should create an asyncio task."""
+    with patch("app.services.agents.orchestrator.run_pipeline", new_callable=AsyncMock) as mock_run:
+        from app.services.agents.orchestrator import start_pipeline_background
+        start_pipeline_background(
+            session_id="sess-6",
+            project_id="proj-1",
+            user_id="user-1",
+            raw_texts=["feedback"],
+        )
+        # Allow the background task to be scheduled
+        import asyncio
+        await asyncio.sleep(0.05)
+
+    mock_run.assert_awaited_once_with("sess-6", "proj-1", "user-1", ["feedback"])

@@ -8,20 +8,9 @@ services:
     env_file: .env
     volumes:
       - .:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  worker:
-    build: .
-    env_file: .env
-    volumes:
-      - .:/app
-    command: celery -A app.workers.celery_app worker --loglevel=info
-    depends_on:
-      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --workers 1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r=httpx.get('http://localhost:8000/health'); assert r.status_code==200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

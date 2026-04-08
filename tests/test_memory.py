@@ -14,7 +14,7 @@ from tests.conftest import make_four_q_answers, make_pattern_report, make_spec
 @pytest.mark.asyncio
 async def test_store_decision():
     """Storing a decision should return a valid record."""
-    from app.services.agents.final.memory import clear_memory_store, store_decision
+    from app.services.agents.memory import clear_memory_store, store_decision
 
     clear_memory_store()
 
@@ -48,7 +48,7 @@ async def test_store_decision():
 @pytest.mark.asyncio
 async def test_retrieve_empty():
     """Retrieving from empty store should return empty context."""
-    from app.services.agents.final.memory import retrieve_context
+    from app.services.agents.memory import retrieve_context
 
     result = await retrieve_context("nonexistent-project", memory_store={})
 
@@ -65,7 +65,7 @@ async def test_retrieve_empty():
 @pytest.mark.asyncio
 async def test_retrieve_with_history():
     """Past decisions should be returned when project has history."""
-    from app.services.agents.final.memory import retrieve_context
+    from app.services.agents.memory import retrieve_context
 
     store = {
         "proj-1": [
@@ -105,7 +105,7 @@ async def test_retrieve_with_history():
 @pytest.mark.asyncio
 async def test_record_outcome():
     """Recording an outcome should update the decision record."""
-    from app.services.agents.final.memory import record_outcome
+    from app.services.agents.memory import record_outcome
 
     store = {
         "proj-1": [

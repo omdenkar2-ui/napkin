@@ -396,8 +396,9 @@ async def list_sessions(
     user: Annotated[dict, Depends(get_current_user)],
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    include_archived: bool = Query(default=False),
 ):
-    """List sessions for a project."""
+    """List sessions for a project. Excludes archived by default."""
     # Verify project access
     db = get_supabase_admin()
     proj = db.table("projects").select("org_id").eq("id", str(project_id)).single().execute()
@@ -405,4 +406,66 @@ async def list_sessions(
         raise HTTPException(status_code=403, detail="Access denied")
 
     service = get_session_service()
-    return await service.list_sessions(project_id, limit=limit, offset=offset)
+    sessions = await service.list_sessions(project_id, limit=limit, offset=offset)
+
+    if not include_archived:
+        sessions = [s for s in sessions if not s.get("archived_at")]
+
+    return sessions
+
+
+# ── Session Lifecycle ───────────────────────────────────────────────
+
+@router.post("/{session_id}/archive", response_model=dict)
+async def archive_session_endpoint(
+    session_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Archive a completed session."""
+    db = get_supabase_admin()
+    _verify_session_access(db, session_id, user)
+
+    from app.services.session_lifecycle import archive_session
+    return await archive_session(str(session_id))
+
+
+@router.post("/{session_id}/unarchive", response_model=dict)
+async def unarchive_session_endpoint(
+    session_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Restore an archived session."""
+    db = get_supabase_admin()
+    _verify_session_access(db, session_id, user)
+
+    from app.services.session_lifecycle import unarchive_session
+    return await unarchive_session(str(session_id))
+
+
+@router.post("/{session_id}/patterns/{pattern_id}/resolve", response_model=dict)
+async def resolve_pattern_endpoint(
+    session_id: UUID,
+    pattern_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+    spec_id: UUID = Query(...),
+):
+    """Mark a pattern as resolved by a spec."""
+    db = get_supabase_admin()
+    _verify_session_access(db, session_id, user)
+
+    from app.services.session_lifecycle import resolve_pattern
+    return await resolve_pattern(str(pattern_id), str(spec_id))
+
+
+@router.post("/{session_id}/patterns/{pattern_id}/unresolve", response_model=dict)
+async def unresolve_pattern_endpoint(
+    session_id: UUID,
+    pattern_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Mark a pattern as unresolved (e.g. fix was reverted)."""
+    db = get_supabase_admin()
+    _verify_session_access(db, session_id, user)
+
+    from app.services.session_lifecycle import unresolve_pattern
+    return await unresolve_pattern(str(pattern_id))

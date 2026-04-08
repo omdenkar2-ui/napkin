@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useSession } from "@/hooks/use-session";
 import { Spinner } from "@/components/ui/spinner";
 import { SessionChatWidget } from "@/components/chat/session-chat-widget";
+import { ActionCards } from "@/components/actions/action-cards";
 import { ApiError } from "@/lib/api/client";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
@@ -85,17 +86,29 @@ function PatternCard({ cluster, rank, onGenerateSpec }: { cluster: any; rank: nu
         </div>
       </div>
 
-      {/* Bottom badges */}
-      <div className="flex items-center gap-2 mt-3 flex-wrap">
-        <SeverityBadge score={cluster.severity_score ?? 0} />
-        {segments.slice(0, 2).map((seg: string) => (
-          <span
-            key={seg}
-            className="bg-card-bg border border-border text-text-tertiary text-[11px] rounded px-2 py-0.5"
-          >
-            {seg}
-          </span>
-        ))}
+      {/* Bottom row: badges + generate spec button */}
+      <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SeverityBadge score={cluster.severity_score ?? 0} />
+          {segments.slice(0, 2).map((seg: string) => (
+            <span
+              key={seg}
+              className="bg-card-bg border border-border text-text-tertiary text-[11px] rounded px-2 py-0.5"
+            >
+              {seg}
+            </span>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onGenerateSpec();
+          }}
+          className="shrink-0 ml-3 h-8 px-4 bg-card-bg border border-border rounded-lg text-text-secondary text-[12px] font-medium hover:border-border-hover hover:text-foreground transition-colors"
+        >
+          Generate spec →
+        </button>
       </div>
 
       {/* Expanded content */}
@@ -287,15 +300,8 @@ function PatternCardsState({ session, onShowSpec }: { session: any; onShowSpec: 
           </p>
           <p className="text-[14px] text-foreground">
             Based on evidence strength, start with &ldquo;{topCluster.label}&rdquo; — it has the highest
-            severity and frequency across your feedback.
+            severity and frequency across your feedback. You can generate a spec for any pattern above.
           </p>
-          <button
-            type="button"
-            onClick={() => onShowSpec(topCluster)}
-            className="mt-4 bg-cta-bg text-cta-text h-11 px-6 rounded-lg text-[14px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Generate spec for &ldquo;{topCluster.label}&rdquo; →
-          </button>
         </div>
       )}
     </div>
@@ -327,6 +333,8 @@ function SectionLabel({ color, label, sub }: { color: string; label: string; sub
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SpecView({ session, onBack }: { session: any; onBack: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const spec = (session?.spec_object as Record<string, unknown>) ?? {};
   const cursorPrompt: string =
@@ -503,10 +511,24 @@ function SpecView({ session, onBack }: { session: any; onBack: () => void }) {
       <div className="mt-8 flex flex-col gap-3 max-w-[400px]">
         <button
           type="button"
-          onClick={() => toast.success("Saved to decisions")}
-          className="bg-card-bg border border-border rounded-lg h-10 px-4 text-[13px] font-medium text-foreground hover:border-border-hover transition-colors text-left"
+          disabled={saving || saved}
+          onClick={async () => {
+            if (saved || saving) return;
+            setSaving(true);
+            try {
+              const { api } = await import("@/lib/api/client");
+              await api.post("/specs", { session_id: session.id });
+              setSaved(true);
+              toast.success("Saved to decisions");
+            } catch {
+              toast.error("Failed to save");
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="bg-card-bg border border-border rounded-lg h-10 px-4 text-[13px] font-medium text-foreground hover:border-border-hover transition-colors text-left disabled:opacity-50"
         >
-          Save to decisions
+          {saved ? "Saved to decisions" : saving ? "Saving..." : "Save to decisions"}
         </button>
         <button
           type="button"
@@ -676,6 +698,16 @@ export default function SessionViewPage() {
             session={session}
             onShowSpec={handleShowSpec}
           />
+
+          {/* One-click actions (generated after pipeline completes) */}
+          {session.stage === "done" && session.project_id && (
+            <div className="mt-10">
+              <ActionCards
+                sessionId={params.id}
+                projectId={session.project_id as string}
+              />
+            </div>
+          )}
         </div>
         <div className="fixed bottom-6 right-6 z-50">
           <SessionChatWidget />

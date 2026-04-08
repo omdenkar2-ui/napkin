@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Suspense, useEffect, useState, useRef } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -9,7 +10,23 @@ import {
   getProject,
   updateProject,
 } from "@/lib/api/projects";
+import {
+  listIntegrations,
+  connectGmail,
+  syncGmail,
+  connectGitHub,
+  syncGitHub,
+  syncGitHubIssues,
+  connectIntercom,
+  syncIntercom,
+  disconnectIntegration,
+  getCapabilities,
+  handleGmailCallback,
+  handleGitHubCallback,
+} from "@/lib/api/integrations";
+import { BusinessContextCard } from "@/components/context/business-context-card";
 import { Spinner } from "@/components/ui/spinner";
+import { Mail, GitBranch, Bug, MessageSquare, Headphones } from "lucide-react";
 
 type Tab = "Workspace" | "Integrations" | "Team" | "Account";
 
@@ -97,75 +114,304 @@ function WorkspaceTab({ projectId }: { projectId: string }) {
 }
 
 /* ─── Integrations tab ─────────────────────────────────────── */
-const INTEGRATIONS = [
-  {
-    key: "github",
-    name: "GitHub",
-    description: "Connect your repo for smarter specs",
-    comingSoon: false,
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5 text-foreground" fill="currentColor">
-        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-      </svg>
-    ),
-  },
-  {
-    key: "notion",
-    name: "Notion",
-    description: "Import pages as feedback",
-    comingSoon: true,
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5 text-foreground" fill="currentColor">
-        <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
-      </svg>
-    ),
-  },
-  {
-    key: "slack",
-    name: "Slack",
-    description: "Share patterns with your team",
-    comingSoon: true,
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5 text-foreground" fill="currentColor">
-        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
-      </svg>
-    ),
-  },
-];
+function IntegrationsTab({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const [intercomToken, setIntercomToken] = useState("");
 
-function IntegrationsTab() {
+  const { data: integrations } = useQuery({
+    queryKey: ["integrations", projectId],
+    queryFn: () => listIntegrations(projectId),
+    enabled: !!projectId,
+  });
+
+  const { data: caps } = useQuery({
+    queryKey: ["integration-capabilities"],
+    queryFn: () => getCapabilities(),
+    staleTime: 120_000,
+  });
+
+  const intMap = new Map(
+    (integrations ?? []).map((i: { provider: string }) => [i.provider, i]),
+  );
+
+  function isConnected(provider: string): boolean {
+    const i = intMap.get(provider) as { status?: string } | undefined;
+    return i?.status === "connected" || i?.status === "active";
+  }
+
+  function getLastSynced(provider: string): string | undefined {
+    return (intMap.get(provider) as { last_synced_at?: string } | undefined)?.last_synced_at ?? undefined;
+  }
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["integrations", projectId] });
+  const redirectUri = typeof window !== "undefined" ? `${window.location.origin}/settings` : "";
+  const noop = () => {};
+
+  const gmailConnect = useMutation({
+    mutationFn: () => connectGmail(projectId, redirectUri),
+    onSuccess: (d) => { window.location.href = d.auth_url; },
+    onError: () => toast.error("Couldn't connect Gmail. Please try again."),
+  });
+  const githubConnect = useMutation({
+    mutationFn: () => connectGitHub(projectId, redirectUri),
+    onSuccess: (d) => { window.location.href = d.auth_url; },
+    onError: () => toast.error("Couldn't connect GitHub. Please try again."),
+  });
+  const gmailSync = useMutation({
+    mutationFn: () => syncGmail(projectId),
+    onSuccess: (d) => { toast.success(`Synced ${d.synced ?? 0} emails`); invalidate(); },
+    onError: () => toast.error("Sync failed. Please try again."),
+  });
+  const githubSync = useMutation({
+    mutationFn: () => syncGitHub(projectId),
+    onSuccess: () => { toast.success("Repo context updated"); invalidate(); },
+    onError: () => toast.error("Sync failed. Please try again."),
+  });
+  const githubIssuesSync = useMutation({
+    mutationFn: () => syncGitHubIssues(projectId),
+    onSuccess: (d) => { toast.success(`Synced ${d.items_synced ?? 0} issues`); invalidate(); },
+    onError: () => toast.error("Sync failed. Please try again."),
+  });
+  const intercomConnect = useMutation({
+    mutationFn: (token: string) => connectIntercom(projectId, token),
+    onSuccess: () => { toast.success("Intercom connected!"); setIntercomToken(""); invalidate(); },
+    onError: () => toast.error("Connection failed. Check your token and try again."),
+  });
+  const intercomSync = useMutation({
+    mutationFn: () => syncIntercom(projectId),
+    onSuccess: (d) => { toast.success(`Synced ${d.items_synced ?? 0} conversations`); invalidate(); },
+    onError: () => toast.error("Sync failed. Please try again."),
+  });
+  const doDisconnect = useMutation({
+    mutationFn: (p: string) => disconnectIntegration(p, projectId),
+    onSuccess: () => { toast.success("Disconnected"); invalidate(); },
+    onError: () => toast.error("Something went wrong. Try again."),
+  });
+
+  // ── Card builder ──
+
+  type CardDef = {
+    key: string;
+    name: string;
+    desc: string;
+    icon: React.ReactNode;
+    provider: string;          // key in caps + intMap
+    available: boolean;
+    connected: boolean;
+    onConnect: () => void;
+    onSync: () => void;
+    onDisconnect: () => void;
+    lastSynced?: string;
+    requiresNote?: string;     // shown when a dependency isn't met
+    customSlot?: React.ReactNode;
+  };
+
+  const githubConnected = isConnected("github");
+
+  const cards: CardDef[] = [
+    {
+      key: "gmail", name: "Gmail", provider: "gmail",
+      desc: "Scan inbox for support replies, NPS responses, and user feedback",
+      icon: <Mail className="w-5 h-5 text-foreground" />,
+      available: caps?.gmail?.available ?? false,
+      connected: isConnected("gmail"),
+      onConnect: () => gmailConnect.mutate(),
+      onSync: () => gmailSync.mutate(),
+      onDisconnect: () => doDisconnect.mutate("gmail"),
+      lastSynced: getLastSynced("gmail"),
+    },
+    {
+      key: "github", name: "GitHub", provider: "github",
+      desc: "Connect your repo so Napkin understands what's already built",
+      icon: <GitBranch className="w-5 h-5 text-foreground" />,
+      available: caps?.github?.available ?? false,
+      connected: githubConnected,
+      onConnect: () => githubConnect.mutate(),
+      onSync: () => githubSync.mutate(),
+      onDisconnect: () => doDisconnect.mutate("github"),
+      lastSynced: getLastSynced("github"),
+    },
+    {
+      key: "github_issues", name: "GitHub Issues", provider: "github_issues",
+      desc: "Pull bug reports, feature requests, and user feedback from your repo",
+      icon: <Bug className="w-5 h-5 text-foreground" />,
+      available: caps?.github_issues?.available ?? false,
+      connected: githubConnected,
+      onConnect: noop,
+      onSync: () => githubIssuesSync.mutate(),
+      onDisconnect: noop,
+      lastSynced: getLastSynced("github"),
+      requiresNote: !githubConnected ? "Connect GitHub above to enable this." : undefined,
+    },
+    {
+      key: "intercom", name: "Intercom", provider: "intercom",
+      desc: "Pull customer support conversations as feedback",
+      icon: <Headphones className="w-5 h-5 text-foreground" />,
+      available: true,
+      connected: isConnected("intercom"),
+      onConnect: noop,
+      onSync: () => intercomSync.mutate(),
+      onDisconnect: () => doDisconnect.mutate("intercom"),
+      lastSynced: getLastSynced("intercom"),
+      customSlot: !isConnected("intercom") ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              placeholder="Paste your Intercom access token"
+              value={intercomToken}
+              onChange={(e) => setIntercomToken(e.target.value)}
+              className="flex-1 h-8 bg-background border border-border rounded-md px-2 text-[12px] text-foreground placeholder:text-text-ghost focus:border-border-focus focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => intercomToken.trim() && intercomConnect.mutate(intercomToken.trim())}
+              disabled={!intercomToken.trim() || intercomConnect.isPending}
+              className="h-8 px-3 bg-cta-bg text-cta-text rounded-md text-[12px] font-medium disabled:opacity-40"
+            >
+              {intercomConnect.isPending ? "..." : "Connect"}
+            </button>
+          </div>
+          <p className="text-[11px] text-text-ghost">
+            Find it in Intercom: Settings &gt; Integrations &gt; API Keys
+          </p>
+        </div>
+      ) : undefined,
+    },
+    {
+      key: "whatsapp", name: "WhatsApp Business", provider: "whatsapp",
+      desc: "Receive customer messages as feedback in real-time",
+      icon: <MessageSquare className="w-5 h-5 text-foreground" />,
+      available: caps?.whatsapp?.available ?? false,
+      connected: isConnected("whatsapp"),
+      onConnect: noop,
+      onSync: () => toast.info("WhatsApp syncs automatically via webhook"),
+      onDisconnect: () => doDisconnect.mutate("whatsapp"),
+      lastSynced: getLastSynced("whatsapp"),
+    },
+  ];
+
   return (
-    <div className="flex flex-col gap-3">
-      {INTEGRATIONS.map((integration) => (
-        <div
-          key={integration.key}
-          className="bg-card-bg border border-border rounded-xl p-5 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.04)] border border-border flex items-center justify-center shrink-0">
-              {integration.icon}
+    <div className="flex flex-col gap-4">
+      <p className="text-[13px] text-text-secondary mb-1">
+        Connect data sources to automatically pull feedback into Napkin.
+      </p>
+
+      {cards.map((c) => {
+        // State 1: Connected
+        if (c.connected) {
+          return (
+            <div key={c.key} className="rounded-[12px] bg-card-bg border border-border p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center shrink-0">
+                  {c.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-medium text-foreground">{c.name}</h3>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[rgba(72,199,142,0.12)] text-accent-green border border-[rgba(72,199,142,0.2)]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
+                      Connected
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-text-secondary mb-3">{c.desc}</p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={c.onSync}
+                      className="h-8 px-3 bg-card-bg border border-border rounded-md text-[12px] font-medium text-text-secondary hover:border-border-hover transition-colors"
+                    >
+                      Sync now
+                    </button>
+                    <button
+                      type="button"
+                      onClick={c.onDisconnect}
+                      className="text-[12px] text-text-ghost hover:text-accent-red transition-colors"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                  {c.lastSynced && (
+                    <p className="text-[11px] text-text-ghost mt-2">
+                      Last synced {c.lastSynced}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-[14px] font-medium text-foreground">
-                {integration.name}
-              </p>
-              <p className="text-[12px] text-text-tertiary mt-0.5">
-                {integration.description}
-              </p>
+          );
+        }
+
+        // State 2: Has a dependency not met
+        if (c.requiresNote) {
+          return (
+            <div key={c.key} className="rounded-[12px] bg-card-bg border border-border p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center shrink-0 opacity-50">
+                  {c.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-medium text-foreground mb-1">{c.name}</h3>
+                  <p className="text-[13px] text-text-secondary mb-2">{c.desc}</p>
+                  <p className="text-[12px] text-text-tertiary">{c.requiresNote}</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // State 3: Available — show Connect button or custom slot
+        if (c.available) {
+          return (
+            <div key={c.key} className="rounded-[12px] bg-card-bg border border-border p-5 hover:border-border-hover transition-colors">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center shrink-0">
+                  {c.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-medium text-foreground mb-1">{c.name}</h3>
+                  <p className="text-[13px] text-text-secondary mb-3">{c.desc}</p>
+                  {c.customSlot ? c.customSlot : (
+                    <button
+                      type="button"
+                      onClick={c.onConnect}
+                      className="h-9 px-4 bg-cta-bg text-cta-text rounded-lg text-[13px] font-medium hover:opacity-90 transition-opacity"
+                    >
+                      Connect {c.name}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // State 4: Coming soon
+        return (
+          <div key={c.key} className="rounded-[12px] bg-card-bg border border-border p-5 opacity-50">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center shrink-0">
+                {c.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-foreground">{c.name}</h3>
+                  <span className="text-[11px] text-text-ghost">Coming soon</span>
+                </div>
+                <p className="text-[13px] text-text-secondary">{c.desc}</p>
+              </div>
             </div>
           </div>
-          {integration.comingSoon ? (
-            <span className="text-[11px] text-text-ghost">Coming soon</span>
-          ) : (
-            <button
-              onClick={() => toast.info("GitHub integration coming soon")}
-              className="h-8 px-3 bg-card-bg border border-border rounded-md text-text-secondary text-[12px] font-medium hover:border-border-hover transition-colors"
-            >
-              Connect
-            </button>
-          )}
-        </div>
-      ))}
+        );
+      })}
+
+      {/* Website scraper / Business context */}
+      <div className="mt-4 border-t border-border pt-4">
+        <p className="text-[13px] font-medium text-text-secondary mb-3">
+          Product context
+        </p>
+        <BusinessContextCard projectId={projectId} />
+      </div>
     </div>
   );
 }
@@ -257,14 +503,56 @@ function AccountTab({
 /* ─── Page ─────────────────────────────────────────────────── */
 const TABS: Tab[] = ["Workspace", "Integrations", "Team", "Account"];
 
-export default function SettingsPage() {
+function SettingsPageInner() {
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("Workspace");
   const [projectId, setProjectId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const callbackHandled = useRef(false);
 
   useEffect(() => {
     getOrCreateDefaultProject().then((p) => setProjectId(p.id)).catch(() => {});
   }, []);
+
+  // ── OAuth callback handler ──
+  // After GitHub/Google redirects back with ?code=, exchange it for tokens
+  useEffect(() => {
+    const code = searchParams.get("code");
+    const state = searchParams.get("state");
+    if (!code || !projectId || callbackHandled.current) return;
+    callbackHandled.current = true;
+
+    const redirectUri = `${window.location.origin}/settings`;
+
+    // Determine provider: GitHub state is base64 JSON, Gmail state is "projectId:userId"
+    let isGitHub = false;
+    try {
+      const decoded = atob(state || "");
+      if (decoded.includes("project_id")) isGitHub = true;
+    } catch {
+      // Not valid base64 → Gmail format
+    }
+
+    const toastId = toast.loading(isGitHub ? "Connecting GitHub..." : "Connecting Gmail...");
+
+    const callback = isGitHub
+      ? handleGitHubCallback(code, projectId, redirectUri)
+      : handleGmailCallback(code, projectId, redirectUri);
+
+    callback
+      .then(() => {
+        toast.success(isGitHub ? "GitHub connected!" : "Gmail connected!", { id: toastId });
+        setActiveTab("Integrations");
+        queryClient.invalidateQueries({ queryKey: ["integrations", projectId] });
+        router.replace("/settings", { scroll: false });
+      })
+      .catch(() => {
+        toast.error("Connection failed. Please try again.", { id: toastId });
+        router.replace("/settings", { scroll: false });
+      });
+  }, [searchParams, projectId, queryClient, router]);
 
   return (
     <div className="max-w-[700px] p-8">
@@ -297,7 +585,14 @@ export default function SettingsPage() {
           </div>
         ))}
 
-      {activeTab === "Integrations" && <IntegrationsTab />}
+      {activeTab === "Integrations" &&
+        (projectId ? (
+          <IntegrationsTab projectId={projectId} />
+        ) : (
+          <div className="flex justify-center py-10">
+            <Spinner size="md" />
+          </div>
+        ))}
 
       {activeTab === "Team" && <TeamTab userEmail={user?.email} />}
 
@@ -309,5 +604,13 @@ export default function SettingsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><Spinner size="md" /></div>}>
+      <SettingsPageInner />
+    </Suspense>
   );
 }

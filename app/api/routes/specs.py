@@ -4,11 +4,12 @@ Manage generated specs and shareable napkin artifacts.
 """
 
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
-from app.api.deps.auth import get_current_user
+from app.api.deps.auth import get_current_user, get_current_user_id
 from app.db.client import get_supabase_admin
 from app.schemas.api import SpecOutcomeUpdate, SpecStatusUpdate
 
@@ -34,6 +35,69 @@ def _verify_spec_access(db, spec_id: UUID, user: dict) -> dict:
     if project.get("org_id") != user.get("org_id"):
         raise HTTPException(status_code=403, detail="Access denied")
     return result.data
+
+
+class CreateSpecRequest(BaseModel):
+    session_id: UUID
+
+
+@specs_router.post("", response_model=dict)
+async def create_spec(
+    body: CreateSpecRequest,
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+):
+    """Save a session's spec_object to the specs table (creates a decision)."""
+    db = get_supabase_admin()
+
+    # Get session with access check
+    session = (
+        db.table("sessions")
+        .select("id, project_id, spec_object, cursor_prompt, four_q_answers, ambiguity_score, projects!inner(org_id)")
+        .eq("id", str(body.session_id))
+        .single()
+        .execute()
+    )
+    if not session.data:
+        raise HTTPException(status_code=404, detail="Session not found")
+    project = session.data.get("projects", {})
+    if project.get("org_id") != user.get("org_id"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    spec_obj = session.data.get("spec_object")
+    if not spec_obj:
+        raise HTTPException(status_code=400, detail="Session has no spec to save")
+
+    project_id = session.data["project_id"]
+
+    # Check if spec already saved for this session
+    existing = (
+        db.table("specs")
+        .select("id")
+        .eq("session_id", str(body.session_id))
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return existing.data[0]  # Already saved — return it
+
+    spec_id = str(uuid4())
+    row = {
+        "id": spec_id,
+        "session_id": str(body.session_id),
+        "project_id": project_id,
+        "created_by": str(user_id),
+        "decision": spec_obj.get("decision", {}),
+        "ui_changes": spec_obj.get("ui_changes"),
+        "data_model": spec_obj.get("data_model"),
+        "task_breakdown": spec_obj.get("task_breakdown"),
+        "success_criteria": spec_obj.get("success_criteria"),
+        "cursor_prompt": spec_obj.get("cursor_prompt") or session.data.get("cursor_prompt"),
+        "ambiguity_score": spec_obj.get("ambiguity_score") or session.data.get("ambiguity_score"),
+        "status": "draft",
+    }
+    result = db.table("specs").insert(row).execute()
+    return result.data[0] if result.data else row
 
 
 @specs_router.get("", response_model=list[dict])

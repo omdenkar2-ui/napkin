@@ -59,6 +59,31 @@ class Settings(BaseSettings):
     github_app_private_key: str = ""
     github_personal_access_token: str = ""
 
+    # --- GitHub OAuth (Add-on 3: Repo Connector) ---
+    github_client_id: str = ""
+    github_client_secret: str = ""
+
+    # --- Gmail OAuth (Add-on 1A: Gmail Scraper) ---
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+
+    # --- Intercom (Support Chat Scraper) ---
+    intercom_client_id: str = ""
+    intercom_client_secret: str = ""
+
+    # --- WhatsApp Business (Add-on 1B) ---
+    whatsapp_token: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_phone_number_id: str = ""
+
+    # --- Slack (Add-on 5: Action Generation) ---
+    slack_bot_token: str = ""
+    slack_default_channel: str = ""
+
+    # --- Frontend / CORS ---
+    frontend_url: str = ""       # e.g. "https://app.usenapkin.com"
+    cors_origins: str = ""       # comma-separated additional origins
+
     # --- Observability ---
     sentry_dsn: str = ""
     log_level: str = "INFO"

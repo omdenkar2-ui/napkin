@@ -61,7 +61,7 @@ async def test_rice_ranking():
     """Opportunities should be ranked by RICE score descending."""
     mock_llm = make_mock_react_llm(_prioritizer_result())
 
-    from app.services.agents.final.prioritizer import run_prioritizer
+    from app.services.agents.prioritizer import run_prioritizer
     result = await run_prioritizer(make_pattern_report(), llm=mock_llm)
 
     opps = result.get("opportunities", [])
@@ -82,7 +82,7 @@ async def test_recommendation_reasoning():
     """Result should include recommendation reasoning."""
     mock_llm = make_mock_react_llm(_prioritizer_result())
 
-    from app.services.agents.final.prioritizer import run_prioritizer
+    from app.services.agents.prioritizer import run_prioritizer
     result = await run_prioritizer(make_pattern_report(), llm=mock_llm)
 
     assert result.get("recommendation_reasoning")
@@ -98,7 +98,7 @@ async def test_tradeoff_summary():
     """Result should include tradeoff summary."""
     mock_llm = make_mock_react_llm(_prioritizer_result())
 
-    from app.services.agents.final.prioritizer import run_prioritizer
+    from app.services.agents.prioritizer import run_prioritizer
     result = await run_prioritizer(make_pattern_report(), llm=mock_llm)
 
     assert result.get("tradeoff_summary")
@@ -111,7 +111,7 @@ async def test_tradeoff_summary():
 @pytest.mark.asyncio
 async def test_empty_clusters():
     """No clusters should return empty result."""
-    from app.services.agents.final.prioritizer import run_prioritizer
+    from app.services.agents.prioritizer import run_prioritizer
     result = await run_prioritizer({"clusters": []})
 
     assert result.get("opportunities") == []

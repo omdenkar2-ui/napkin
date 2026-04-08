@@ -12,7 +12,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from app.db.client import get_supabase_admin
-from app.services.agents.mvp.orchestrator import start_pipeline_background
+from app.services.agents.orchestrator import start_pipeline_background
 
 logger = logging.getLogger(__name__)
 

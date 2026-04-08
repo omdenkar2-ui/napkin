@@ -1,8 +1,7 @@
-"""Tests for the Socratic Questioner agent (Agent 3)."""
+"""Tests for the Strategic Context Inference — infer_strategic_context(pattern_report, priorities) -> dict."""
 
 from __future__ import annotations
 
-import json
 from unittest.mock import patch
 
 import pytest
@@ -11,147 +10,157 @@ from tests.conftest import make_mock_react_llm, make_pattern_report
 
 
 # ============================================================
-# Test 1: No answers -> asks Q1
+# Test 1: Happy path — infers complete strategic context
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_no_answers_asks_q1():
-    """With no answers, node should ask the first question."""
-    mock_llm = make_mock_react_llm("Who is your primary user segment?")
-
-    with patch("app.services.agents.mvp.socratic.get_strong_llm", return_value=mock_llm):
-        from app.services.agents.mvp.socratic import socratic_questioner_node
-        state = {
-            "pattern_report": make_pattern_report(),
-            "four_q_answers": {},
-            "user_response": None,
-            "messages": [],
-        }
-        result = await socratic_questioner_node(state)
-
-    assert result.get("pending_questions")
-    four_q = result.get("four_q_answers", {})
-    assert not four_q.get("is_complete")
-
-
-# ============================================================
-# Test 2: Good answer -> advances to next question
-# ============================================================
-
-@pytest.mark.asyncio
-async def test_good_answer_advances():
-    """A valid answer to Q1 should populate q1_segment_jtbd."""
-    # Mock returns extraction result for synthesize_answer tool
-    extract_result = {
-        "extracted_data": {
-            "segment_jtbd": "Power users who need fast reports",
-            "evidence": ["sig-1"],
-        },
-        "quality_score": 0.9,
-        "is_vague": False,
-        "followup_needed": "",
+async def test_infers_complete_context():
+    """Should return a dict with all 4Q fields populated and is_complete=True."""
+    context_result = {
+        "q1_segment_jtbd": "Power users who need fast reporting",
+        "q1_evidence": ["sig-1", "sig-2"],
+        "q2_smallest_proof": "PDF export button on reports page",
+        "q2_scope_notes": "Single-page PDF only",
+        "q3_non_goals": ["Dashboard redesign", "Mobile app"],
+        "q4_constraints": ["React frontend", "Supabase backend"],
+        "q4_risks": ["PDF generation library compatibility"],
+        "q4_dependencies": [],
     }
-    mock_llm = make_mock_react_llm(extract_result)
+    mock_llm = make_mock_react_llm(context_result)
 
-    with patch("app.services.agents.mvp.socratic.get_strong_llm", return_value=mock_llm):
-        from app.services.agents.mvp.socratic import socratic_questioner_node
-        state = {
-            "pattern_report": make_pattern_report(),
-            "four_q_answers": {},
-            "user_response": "Power users who need fast reporting",
-            "messages": [],
-        }
-        result = await socratic_questioner_node(state)
+    with patch("app.services.agents.socratic.get_strong_llm", return_value=mock_llm):
+        from app.services.agents.socratic import infer_strategic_context
+        result = await infer_strategic_context(
+            pattern_report=make_pattern_report(),
+            priorities={"opportunities": [{"title": "PDF export"}]},
+        )
 
-    four_q = result.get("four_q_answers", {})
-    assert four_q.get("q1_segment_jtbd")
-
-
-# ============================================================
-# Test 3: Vague pushback -> still stores answer
-# ============================================================
-
-@pytest.mark.asyncio
-async def test_vague_pushback_stays():
-    """If extraction fails, raw answer is stored as fallback."""
-    mock_llm = make_mock_react_llm("not valid structured data")
-
-    with patch("app.services.agents.mvp.socratic.get_strong_llm", return_value=mock_llm):
-        from app.services.agents.mvp.socratic import socratic_questioner_node
-        state = {
-            "pattern_report": make_pattern_report(),
-            "four_q_answers": {},
-            "user_response": "I dunno, everyone I guess",
-            "messages": [],
-        }
-        result = await socratic_questioner_node(state)
-
-    # Raw answer stored as fallback
-    four_q = result.get("four_q_answers", {})
-    assert four_q.get("q1_segment_jtbd")
+    assert isinstance(result, dict)
+    assert result.get("is_complete") is True
+    assert result.get("q1_segment_jtbd")
+    assert result.get("q2_smallest_proof")
+    assert result.get("q3_non_goals")
+    assert result.get("q4_constraints")
 
 
 # ============================================================
-# Test 4: Full flow -> is_complete=True
+# Test 2: All key fields are present in output
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_full_flow_completes():
-    """All 4 answers provided should result in is_complete=True."""
-    extract_result = {
-        "extracted_data": {"constraints": ["React"], "risks": ["compat"]},
-        "quality_score": 0.8,
-        "is_vague": False,
-        "followup_needed": "",
+async def test_all_fields_present():
+    """Output should contain q1 through q4 fields."""
+    context_result = {
+        "q1_segment_jtbd": "Enterprise admins managing teams",
+        "q1_evidence": ["sig-3"],
+        "q2_smallest_proof": "Team dashboard widget",
+        "q2_scope_notes": "Read-only summary",
+        "q3_non_goals": ["Custom branding"],
+        "q4_constraints": ["Existing auth system"],
+        "q4_risks": ["Adoption risk"],
+        "q4_dependencies": ["SSO provider"],
     }
-    mock_llm = make_mock_react_llm(extract_result)
+    mock_llm = make_mock_react_llm(context_result)
 
-    with patch("app.services.agents.mvp.socratic.get_strong_llm", return_value=mock_llm):
-        from app.services.agents.mvp.socratic import socratic_questioner_node
-        state = {
-            "pattern_report": make_pattern_report(),
-            "four_q_answers": {
-                "q1_segment_jtbd": "Power users",
-                "q2_smallest_proof": "PDF export",
-                "q3_non_goals": ["Mobile app"],
-            },
-            "user_response": "React frontend, Supabase backend",
-            "messages": [],
-        }
-        result = await socratic_questioner_node(state)
+    with patch("app.services.agents.socratic.get_strong_llm", return_value=mock_llm):
+        from app.services.agents.socratic import infer_strategic_context
+        result = await infer_strategic_context(
+            pattern_report=make_pattern_report(),
+            priorities={},
+        )
 
-    four_q = result.get("four_q_answers", {})
-    assert four_q.get("is_complete") is True
-    assert not result.get("pending_questions")
+    expected_keys = [
+        "q1_segment_jtbd", "q2_smallest_proof", "q3_non_goals",
+        "q4_constraints", "q4_risks", "is_complete",
+    ]
+    for key in expected_keys:
+        assert key in result, f"Missing key: {key}"
 
 
 # ============================================================
-# Test 5: Resume from partial state
+# Test 3: Fallback on LLM error
 # ============================================================
 
 @pytest.mark.asyncio
-async def test_resume_from_partial():
-    """Node should continue from where it left off (Q1 done, answer Q2)."""
-    extract_result = {
-        "extracted_data": {"smallest_proof": "PDF button on reports"},
-        "quality_score": 0.9,
-        "is_vague": False,
-        "followup_needed": "",
+async def test_fallback_on_error():
+    """If LLM raises an exception, should return fallback context (not crash)."""
+    from unittest.mock import MagicMock
+
+    mock_llm = MagicMock()
+    structured_mock = MagicMock()
+    from unittest.mock import AsyncMock
+    structured_mock.ainvoke = AsyncMock(side_effect=Exception("LLM timeout"))
+    mock_llm.with_structured_output.return_value = structured_mock
+
+    with patch("app.services.agents.socratic.get_strong_llm", return_value=mock_llm):
+        from app.services.agents.socratic import infer_strategic_context
+        result = await infer_strategic_context(
+            pattern_report=make_pattern_report(),
+            priorities={"opportunities": [{"title": "Fix dashboard"}]},
+        )
+
+    # Should still return a valid dict with fallback values
+    assert isinstance(result, dict)
+    assert result.get("is_complete") is True
+    assert result.get("q1_segment_jtbd")  # Fallback populates from top_pains
+
+
+# ============================================================
+# Test 4: Empty priorities handled gracefully
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_empty_priorities():
+    """Empty priorities dict should not crash the inference."""
+    context_result = {
+        "q1_segment_jtbd": "Users reporting dashboard issues",
+        "q1_evidence": [],
+        "q2_smallest_proof": "Fix top critical issue",
+        "q2_scope_notes": "Focus on highest-impact change",
+        "q3_non_goals": ["Large-scale refactoring"],
+        "q4_constraints": [],
+        "q4_risks": ["Scope creep"],
+        "q4_dependencies": [],
     }
-    mock_llm = make_mock_react_llm(extract_result)
+    mock_llm = make_mock_react_llm(context_result)
 
-    with patch("app.services.agents.mvp.socratic.get_strong_llm", return_value=mock_llm):
-        from app.services.agents.mvp.socratic import socratic_questioner_node
-        state = {
-            "pattern_report": make_pattern_report(),
-            "four_q_answers": {
-                "q1_segment_jtbd": "Power users",
-            },
-            "user_response": "Just add a PDF export button",
-            "messages": [],
-        }
-        result = await socratic_questioner_node(state)
+    with patch("app.services.agents.socratic.get_strong_llm", return_value=mock_llm):
+        from app.services.agents.socratic import infer_strategic_context
+        result = await infer_strategic_context(
+            pattern_report=make_pattern_report(),
+            priorities={},
+        )
 
-    four_q = result.get("four_q_answers", {})
-    assert four_q.get("q1_segment_jtbd")
-    assert four_q.get("q2_smallest_proof")
+    assert isinstance(result, dict)
+    assert result.get("is_complete") is True
+
+
+# ============================================================
+# Test 5: Non-goals list is populated
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_non_goals_populated():
+    """Output should include q3_non_goals as a list."""
+    context_result = {
+        "q1_segment_jtbd": "Power users",
+        "q1_evidence": ["sig-1"],
+        "q2_smallest_proof": "Quick fix",
+        "q2_scope_notes": "Minimal scope",
+        "q3_non_goals": ["Mobile app", "Redesign", "Migration"],
+        "q4_constraints": ["React"],
+        "q4_risks": ["Compat"],
+        "q4_dependencies": [],
+    }
+    mock_llm = make_mock_react_llm(context_result)
+
+    with patch("app.services.agents.socratic.get_strong_llm", return_value=mock_llm):
+        from app.services.agents.socratic import infer_strategic_context
+        result = await infer_strategic_context(
+            pattern_report=make_pattern_report(),
+            priorities={},
+        )
+
+    non_goals = result.get("q3_non_goals", [])
+    assert isinstance(non_goals, list)
+    assert len(non_goals) >= 1

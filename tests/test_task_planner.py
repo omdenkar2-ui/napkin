@@ -56,7 +56,7 @@ async def test_ordered_tasks():
     """Spec should produce ordered tasks with correct dependencies."""
     mock_llm = make_mock_react_llm(_planner_result())
 
-    from app.services.agents.final.task_planner import run_task_planner
+    from app.services.agents.task_planner import run_task_planner
     spec = make_spec()
     result = await run_task_planner(spec, llm=mock_llm)
 
@@ -75,7 +75,7 @@ async def test_db_before_be_before_fe():
     """Critical path should order DB → BE → FE."""
     mock_llm = make_mock_react_llm(_planner_result())
 
-    from app.services.agents.final.task_planner import run_task_planner
+    from app.services.agents.task_planner import run_task_planner
     spec = make_spec()
     result = await run_task_planner(spec, llm=mock_llm)
 
@@ -101,7 +101,7 @@ async def test_sprint_checkpoints():
     """Sprint plan should have checkpoints at days 3, 5, 8, 10."""
     mock_llm = make_mock_react_llm(_planner_result())
 
-    from app.services.agents.final.task_planner import run_task_planner
+    from app.services.agents.task_planner import run_task_planner
     spec = make_spec()
     result = await run_task_planner(spec, llm=mock_llm)
 
@@ -133,7 +133,7 @@ async def test_risk_flag_over_80h():
     }
     mock_llm = make_mock_react_llm(heavy_result)
 
-    from app.services.agents.final.task_planner import run_task_planner
+    from app.services.agents.task_planner import run_task_planner
     spec = make_spec()
     result = await run_task_planner(spec, llm=mock_llm)
 

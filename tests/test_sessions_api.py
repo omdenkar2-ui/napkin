@@ -325,7 +325,7 @@ async def test_get_exports():
     app = _get_app()
     mock_db = make_mock_supabase_db()
     mock_svc = _mock_service(get_session={
-        "id": _SID, "stage": "done", "exports": exports_data,
+        "id": _SID, "stage": "done", "gate_results": {"exports": exports_data},
     })
 
     with patch("app.api.routes.sessions.get_supabase_admin", return_value=mock_db), \
@@ -372,12 +372,12 @@ async def test_get_export_tickets():
     mock_svc = _mock_service(get_session={
         "id": _SID,
         "stage": "done",
-        "exports": {
+        "gate_results": {"exports": {
             "tickets": [
                 {"title": "Speed up", "priority": "high", "effort_estimate": "M",
                  "source_feedback_count": 5, "rice_score": 60},
             ],
-        },
+        }},
     })
 
     with patch("app.api.routes.sessions.get_supabase_admin", return_value=mock_db), \
@@ -404,7 +404,7 @@ async def test_get_export_prd():
     mock_svc = _mock_service(get_session={
         "id": _SID,
         "stage": "done",
-        "exports": {"prd_url": "https://storage.example.com/prd.pdf"},
+        "gate_results": {"exports": {"prd_url": "https://storage.example.com/prd.pdf"}},
     })
 
     with patch("app.api.routes.sessions.get_supabase_admin", return_value=mock_db), \
@@ -431,7 +431,7 @@ async def test_get_export_prd_unavailable():
     mock_svc = _mock_service(get_session={
         "id": _SID,
         "stage": "done",
-        "exports": {"prd_url": None},
+        "gate_results": {"exports": {"prd_url": None}},
     })
 
     with patch("app.api.routes.sessions.get_supabase_admin", return_value=mock_db), \

@@ -14,7 +14,7 @@ from tests.conftest import make_four_q_answers, make_spec
 @pytest.mark.asyncio
 async def test_clean_spec_passes():
     """A well-formed spec should pass QA with no errors."""
-    from app.services.agents.final.spec_qa import run_spec_qa
+    from app.services.agents.spec_qa import run_spec_qa
 
     spec = make_spec()
     result = await run_spec_qa(spec, make_four_q_answers(), llm=None)
@@ -30,7 +30,7 @@ async def test_clean_spec_passes():
 @pytest.mark.asyncio
 async def test_missing_acceptance_criteria():
     """Tasks without acceptance_criteria should produce errors."""
-    from app.services.agents.final.spec_qa import run_spec_qa
+    from app.services.agents.spec_qa import run_spec_qa
 
     spec = make_spec()
     for task in spec["task_breakdown"]:
@@ -53,7 +53,7 @@ async def test_missing_acceptance_criteria():
 @pytest.mark.asyncio
 async def test_banned_words_error():
     """Cursor prompt with banned words should produce errors."""
-    from app.services.agents.final.spec_qa import run_spec_qa
+    from app.services.agents.spec_qa import run_spec_qa
 
     spec = make_spec()
     spec["cursor_prompt"] = "Step 1: improve the dashboard. Step 2: optimize queries."
@@ -76,7 +76,7 @@ async def test_banned_words_error():
 @pytest.mark.asyncio
 async def test_clarification_questions():
     """Error-level issues should generate clarification questions."""
-    from app.services.agents.final.spec_qa import run_spec_qa
+    from app.services.agents.spec_qa import run_spec_qa
 
     spec = make_spec()
     spec.pop("decision")  # Remove required section

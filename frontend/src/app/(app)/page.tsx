@@ -14,7 +14,11 @@ import {
   FeedbackInput,
   type FeedbackInputRef,
 } from "@/components/feedback/feedback-input";
+import { NapkinChat } from "@/components/chat/napkin-chat";
+import { RepoContextCard } from "@/components/context/repo-context-card";
 import type { SessionListItem } from "@/types/api";
+
+type InputMode = "upload" | "chat";
 
 const SAMPLE_FEEDBACK = `The search functionality is really slow when I have more than 50 items in my list. Takes 3-4 seconds every time.
 
@@ -39,6 +43,7 @@ export default function DashboardPage() {
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [inputMode, setInputMode] = useState<InputMode>("upload");
 
   useEffect(() => {
     getOrCreateDefaultProject()
@@ -105,41 +110,81 @@ export default function DashboardPage() {
             : "Welcome to Napkin"}
         </h1>
 
-        {/* Input card */}
-        <FeedbackInput
-          ref={feedbackRef}
-          onSubmit={handleSubmit}
-          minTextareaHeight="80px"
-          placeholder="Paste customer feedback to discover patterns..."
-        />
-
-        {/* Suggestion chips */}
-        <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
+        {/* Mode toggle: Upload Data vs Ask Napkin */}
+        <div className="flex items-center gap-1 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)] rounded-lg p-1 mb-6">
           <button
             type="button"
-            onClick={() => feedbackRef.current?.openFilePicker()}
-            className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
+            onClick={() => setInputMode("upload")}
+            className={`flex-1 px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
+              inputMode === "upload"
+                ? "bg-[rgba(255,255,255,0.08)] text-foreground"
+                : "text-text-tertiary hover:text-text-secondary"
+            }`}
           >
-            Upload CSV
+            Upload Data
           </button>
           <button
             type="button"
-            onClick={() => feedbackRef.current?.focusTextarea()}
-            className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
+            onClick={() => setInputMode("chat")}
+            className={`flex-1 px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
+              inputMode === "chat"
+                ? "bg-[rgba(255,255,255,0.08)] text-foreground"
+                : "text-text-tertiary hover:text-text-secondary"
+            }`}
           >
-            Paste interview notes
-          </button>
-          <button
-            type="button"
-            onClick={() => feedbackRef.current?.fillText(SAMPLE_FEEDBACK)}
-            className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
-          >
-            Try with sample data
+            Ask Napkin
           </button>
         </div>
 
+        {/* Repo context card (shown above input if connected) */}
+        {projectId && <RepoContextCard projectId={projectId} />}
+
+        {/* Upload mode */}
+        {inputMode === "upload" && (
+          <>
+            <FeedbackInput
+              ref={feedbackRef}
+              onSubmit={handleSubmit}
+              minTextareaHeight="80px"
+              placeholder="Paste customer feedback to discover patterns..."
+            />
+
+            {/* Suggestion chips */}
+            <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
+              <button
+                type="button"
+                onClick={() => feedbackRef.current?.openFilePicker()}
+                className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
+              >
+                Upload CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => feedbackRef.current?.focusTextarea()}
+                className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
+              >
+                Paste interview notes
+              </button>
+              <button
+                type="button"
+                onClick={() => feedbackRef.current?.fillText(SAMPLE_FEEDBACK)}
+                className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
+              >
+                Try with sample data
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Chat mode */}
+        {inputMode === "chat" && projectId && (
+          <div className="w-full" style={{ height: "500px" }}>
+            <NapkinChat projectId={projectId} />
+          </div>
+        )}
+
         {/* No sessions helper */}
-        {!hasAnySessions && (
+        {!hasAnySessions && inputMode === "upload" && (
           <p className="text-[13px] text-text-ghost text-center mt-8">
             Turn customer feedback into evidence-backed specs.
           </p>
