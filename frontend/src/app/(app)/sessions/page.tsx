@@ -1,120 +1,99 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listSessions, deleteSession } from "@/lib/api/sessions";
-import { getOrCreateDefaultProject } from "@/lib/api/projects";
-import { Spinner } from "@/components/ui/spinner";
-import { SessionsGrid } from "@/components/sessions/sessions-grid";
-import type { SessionCardSession } from "@/components/sessions/session-card";
-import type { SessionListItem, SessionStage } from "@/types/api";
+import { Sparkles } from "lucide-react";
+import { AnalysisTable, type AnalysisRow } from "@/components/analysis/analysis-table";
+import { AnalysisSkeleton } from "@/components/analysis/analysis-skeleton";
+import { AnalysisEmpty } from "@/components/analysis/analysis-empty";
+import { PageTransition } from "@/components/ui/page-transition";
 
-const LS_EMOJI_KEY = "napkin-session-emojis";
-
-function deriveCardStatus(stage: SessionStage): SessionCardSession["status"] {
-  if (stage === "done") return "spec_ready";
-  if (stage === "error") return "no_patterns";
-  if (
-    stage === "spec_building" ||
-    stage === "spec_qa" ||
-    stage === "task_planning" ||
-    stage === "review"
-  ) {
-    return "patterns_ready";
-  }
-  return "processing";
-}
-
-function deriveSessionTitle(session: SessionListItem): string {
-  if (session.title && !session.title.startsWith("Session ")) return session.title;
-  return "Untitled session";
-}
-
-function loadEmojiMap(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(LS_EMOJI_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
+const MOCK_SESSIONS: AnalysisRow[] = [
+  {
+    id: "a-1",
+    date: "Weekly Analysis — Apr 7",
+    time: "",
+    sources: ["slack", "intercom"],
+    feedbackCount: "142 items",
+    themesFound: "12 patterns",
+    status: "completed",
+  },
+  {
+    id: "a-2",
+    date: "Monthly NPS Review — Mar 31",
+    time: "",
+    sources: ["typeform", "intercom"],
+    feedbackCount: "98 items",
+    themesFound: "8 patterns",
+    status: "completed",
+  },
+  {
+    id: "a-3",
+    date: "Q1 Support Analysis — Mar 24",
+    time: "",
+    sources: ["intercom", "email"],
+    feedbackCount: "67 items",
+    themesFound: "5 patterns",
+    status: "completed",
+  },
+  {
+    id: "a-4",
+    date: "Product Feedback Sprint — Mar 17",
+    time: "",
+    sources: ["slack", "zoom"],
+    feedbackCount: "89 items",
+    themesFound: "7 patterns",
+    status: "completed",
+  },
+];
 
 export default function SessionsPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [emojiMap, setEmojiMap] = useState<Record<string, string>>({});
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const isLoading = false;
+  const showEmpty = false;
 
-  useEffect(() => {
-    setEmojiMap(loadEmojiMap());
-  }, []);
-
-  useEffect(() => {
-    getOrCreateDefaultProject()
-      .then((p) => setProjectId(p.id))
-      .catch(() => router.push("/setup"));
-  }, [router]);
-
-  const { data: sessions, isLoading } = useQuery({
-    queryKey: ["sessions", projectId],
-    queryFn: () => listSessions(projectId!, 100, 0),
-    enabled: !!projectId,
-    refetchInterval: 10000,
-  });
-
-  function handleEmojiChange(id: string, emoji: string) {
-    const updated = { ...emojiMap, [id]: emoji };
-    setEmojiMap(updated);
-    try {
-      localStorage.setItem(LS_EMOJI_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore storage errors
-    }
-  }
-
-  async function handleDelete(id: string) {
-    setDeletedIds((prev) => new Set(prev).add(id));
-    try {
-      await deleteSession(id);
-      queryClient.invalidateQueries({ queryKey: ["sessions", projectId] });
-    } catch (err) {
-      console.error("Failed to delete session:", err);
-      setDeletedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  }
-
-  if (!projectId || isLoading) {
+  if (isLoading) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <Spinner size="md" />
+      <div>
+        <div className="h-14 border-b border-[#E5E2DC] flex items-center justify-between px-8 bg-[--background]">
+          <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-[--text-primary]">Sessions</h1>
+        </div>
+        <div className="p-4 md:p-8"><AnalysisSkeleton /></div>
       </div>
     );
   }
 
-  const cardSessions: SessionCardSession[] = (sessions ?? [])
-    .filter((s) => !deletedIds.has(s.id))
-    .map((s) => ({
-      id: s.id,
-      title: deriveSessionTitle(s),
-      emoji: emojiMap[s.id] ?? "📋",
-      status: deriveCardStatus(s.stage),
-      feedbackCount: 0,
-      createdAt: s.created_at,
-    }));
+  if (!isLoading && showEmpty) {
+    return (
+      <div>
+        <div className="h-14 border-b border-[#E5E2DC] flex items-center justify-between px-8 bg-[--background]">
+          <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-[--text-primary]">Sessions</h1>
+        </div>
+        <AnalysisEmpty />
+      </div>
+    );
+  }
 
   return (
-    <SessionsGrid
-      sessions={cardSessions}
-      onSessionClick={(id) => router.push(`/s/${id}`)}
-      onNewSession={() => router.push("/new")}
-      onEmojiChange={handleEmojiChange}
-      onDelete={handleDelete}
-    />
+    <div>
+      {/* Page header */}
+      <div className="h-14 border-b border-[#E5E2DC] flex items-center justify-between px-8 bg-[--background]">
+        <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-[--text-primary]">
+          Sessions
+        </h1>
+        <button
+          type="button"
+          onClick={() => router.push("/sessions/new")}
+          className="inline-flex items-center gap-2 h-9 px-4 bg-[--primary] text-[--primary-text] rounded-md text-sm font-medium hover:bg-[--primary-hover] transition-colors"
+        >
+          <Sparkles className="w-4 h-4" />
+          New Session
+        </button>
+      </div>
+
+      {/* Content */}
+      <PageTransition className="p-4 md:p-8">
+        <AnalysisTable analyses={MOCK_SESSIONS} />
+      </PageTransition>
+    </div>
   );
 }

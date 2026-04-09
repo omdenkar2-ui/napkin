@@ -18,7 +18,7 @@ export function SessionIcon({ value, size = 36, className }: SessionIconProps) {
         className={className}
         style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: size, height: size }}
       >
-        <Icon size={Math.round(size * 0.65)} strokeWidth={1.5} color="rgba(255,255,255,0.80)" />
+        <Icon size={Math.round(size * 0.65)} strokeWidth={1.5} color="var(--text-secondary)" />
       </span>
     );
   }

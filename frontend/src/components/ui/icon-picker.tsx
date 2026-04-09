@@ -61,8 +61,8 @@ export function IconPicker({ onIconSelect, selectedIcon }: IconPickerProps) {
           className={cn(
             "flex items-center justify-center w-9 h-9 rounded-lg transition-colors",
             selectedIcon === name
-              ? "bg-[rgba(255,255,255,0.15)] text-white"
-              : "text-[rgba(255,255,255,0.55)] hover:bg-[rgba(255,255,255,0.08)] hover:text-[rgba(255,255,255,0.90)]"
+              ? "bg-[--primary-soft] text-[--primary]"
+              : "text-[--text-muted] hover:bg-[--surface-hover] hover:text-[--text-primary]"
           )}
         >
           <Icon size={16} strokeWidth={1.5} />

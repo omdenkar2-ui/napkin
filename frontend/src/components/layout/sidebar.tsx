@@ -1,182 +1,232 @@
 "use client";
 
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  BarChart3,
+  CheckSquare,
+  Zap,
+  Plug,
+  Users,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function Sidebar() {
+const mainNav = [
+  { label: "Home", icon: LayoutDashboard, href: "/" },
+  { label: "Sessions", icon: BarChart3, href: "/sessions" },
+  { label: "Tasks", icon: CheckSquare, href: "/tasks" },
+  { label: "Workflows", icon: Zap, href: "/workflows" },
+];
+
+const secondaryNav = [
+  { label: "Integrations", icon: Plug, href: "/integrations" },
+  { label: "Team", icon: Users, href: "/team" },
+];
+
+// Context for sidebar state
+interface SidebarContextValue {
+  collapsed: boolean;
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
+}
+
+const SidebarContext = createContext<SidebarContextValue>({
+  collapsed: false,
+  mobileOpen: false,
+  setMobileOpen: () => {},
+});
+
+export function useSidebar() {
+  return useContext(SidebarContext);
+}
+
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored === "true") setCollapsed(true);
+  }, []);
+
+  const toggle = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-collapsed", String(next));
+      return next;
+    });
+  }, []);
+
+  return (
+    <SidebarContext.Provider value={{ collapsed, mobileOpen, setMobileOpen }}>
+      <Sidebar collapsed={collapsed} onToggle={toggle} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      {children}
+    </SidebarContext.Provider>
+  );
+}
+
+// Mobile hamburger button (rendered by layout in the header)
+export function MobileMenuButton() {
+  const { setMobileOpen } = useSidebar();
+  return (
+    <button
+      type="button"
+      onClick={() => setMobileOpen(true)}
+      className="md:hidden w-8 h-8 flex items-center justify-center rounded-md text-[--text-muted] hover:bg-[--surface-hover] transition-colors"
+      aria-label="Open menu"
+    >
+      <Menu className="w-5 h-5" />
+    </button>
+  );
+}
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
-    if (href === "/settings")
-      return pathname === href || pathname.startsWith(href + "/");
-    return pathname === href;
+    return pathname === href || pathname.startsWith(href + "/");
   };
 
-  return (
-    <aside className="fixed left-0 top-0 w-[68px] h-screen bg-sidebar-bg border-r border-[rgba(255,255,255,0.06)] flex flex-col items-center py-4 px-0 z-40">
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    onMobileClose();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const navItemClass = (active: boolean) =>
+    cn(
+      "flex items-center h-9 rounded-lg text-[13px] font-medium transition-all duration-150",
+      collapsed ? "justify-center px-0 w-9 mx-auto" : "gap-2.5 px-3",
+      active
+        ? "bg-[rgba(27,107,122,0.15)] text-white border-l-2 border-l-[#1B6B7A]"
+        : "text-white/50 hover:bg-white/[0.06] hover:text-white/90",
+    );
+
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <Link href="/" className="w-10 h-10 mb-6 flex items-center justify-center">
-        <img
-          src="/logo_clean_final.png"
-          className="w-8 h-8 object-contain"
-          alt="Napkin"
-        />
-      </Link>
-
-      {/* New session button */}
-      <Link
-        href="/"
-        aria-label="New session"
-        className="w-10 h-10 mb-6 rounded-full bg-white flex items-center justify-center hover:opacity-80 transition-opacity"
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#000000"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-      </Link>
-
-      {/* Nav items */}
-      <nav className="flex flex-col items-center w-full px-2">
-        {/* Sessions */}
-        <Link
-          href="/sessions"
-          className={cn(
-            "group flex flex-col items-center gap-1 py-2.5 w-full rounded-lg transition-colors",
-            isActive("/sessions")
-              ? "bg-[rgba(255,255,255,0.06)]"
-              : "hover:bg-[rgba(255,255,255,0.03)]",
+      <div className={cn("py-5 flex items-center border-b border-white/[0.06]", collapsed ? "justify-center px-2" : "px-4")}>
+        <Link href="/" className="flex items-center gap-2">
+          <img src="/logo_clean_final.png" className="w-7 h-7 object-contain" alt="Napkin" />
+          {!collapsed && (
+            <>
+              <span className="text-[16px] font-semibold text-white tracking-[-0.01em]">Napkin</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1B6B7A]" />
+            </>
           )}
-        >
-          <svg
-            className={cn(
-              "w-5 h-5",
-              isActive("/sessions")
-                ? "text-[rgba(255,255,255,0.95)]"
-                : "text-[rgba(255,255,255,0.45)] group-hover:text-[rgba(255,255,255,0.8)]",
-            )}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            className={cn(
-              "text-[10px] font-medium tracking-wide",
-              isActive("/sessions")
-                ? "text-[rgba(255,255,255,0.85)]"
-                : "text-[rgba(255,255,255,0.35)] group-hover:text-[rgba(255,255,255,0.7)]",
-            )}
-          >
-            Sessions
-          </span>
         </Link>
+      </div>
 
-        {/* Decisions */}
-        <Link
-          href="/decisions"
-          className={cn(
-            "group flex flex-col items-center gap-1 py-2.5 w-full rounded-lg transition-colors",
-            isActive("/decisions")
-              ? "bg-[rgba(255,255,255,0.06)]"
-              : "hover:bg-[rgba(255,255,255,0.03)]",
-          )}
-        >
-          <svg
-            className={cn(
-              "w-5 h-5",
-              isActive("/decisions")
-                ? "text-[rgba(255,255,255,0.95)]"
-                : "text-[rgba(255,255,255,0.45)] group-hover:text-[rgba(255,255,255,0.8)]",
-            )}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            className={cn(
-              "text-[10px] font-medium tracking-wide",
-              isActive("/decisions")
-                ? "text-[rgba(255,255,255,0.85)]"
-                : "text-[rgba(255,255,255,0.35)] group-hover:text-[rgba(255,255,255,0.7)]",
-            )}
-          >
-            Decisions
-          </span>
+      {/* Navigation */}
+      <nav className={cn("flex-1 overflow-y-auto py-4", collapsed ? "px-2" : "px-3")}>
+        <ul className="flex flex-col gap-0.5">
+          {mainNav.map((item) => (
+            <li key={item.href}>
+              <Link href={item.href} className={navItemClass(isActive(item.href))} title={collapsed ? item.label : undefined}>
+                <item.icon className="w-[18px] h-[18px] shrink-0" />
+                {!collapsed && item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <div className="my-3 border-t border-white/[0.06]" />
+
+        <ul className="flex flex-col gap-0.5">
+          {secondaryNav.map((item) => (
+            <li key={item.href}>
+              <Link href={item.href} className={navItemClass(isActive(item.href))} title={collapsed ? item.label : undefined}>
+                <item.icon className="w-[18px] h-[18px] shrink-0" />
+                {!collapsed && item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <div className="my-3 border-t border-white/[0.06]" />
+
+        <Link href="/settings" className={navItemClass(isActive("/settings"))} title={collapsed ? "Settings" : undefined}>
+          <Settings className="w-[18px] h-[18px] shrink-0" />
+          {!collapsed && "Settings"}
         </Link>
       </nav>
 
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Bottom: Settings */}
-      <div className="border-t border-[rgba(255,255,255,0.06)] pt-4 flex flex-col items-center w-full px-2">
-        <Link
-          href="/settings"
+      {/* Collapse toggle (hidden on mobile) */}
+      <div className="hidden md:block border-t border-white/[0.06] p-2">
+        <button
+          type="button"
+          onClick={onToggle}
           className={cn(
-            "group flex flex-col items-center gap-1 py-2.5 w-full rounded-lg transition-colors",
-            isActive("/settings")
-              ? "bg-[rgba(255,255,255,0.06)]"
-              : "hover:bg-[rgba(255,255,255,0.03)]",
+            "flex items-center h-8 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all duration-150 w-full",
+            collapsed ? "justify-center" : "gap-2.5 px-3",
           )}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <svg
-            className={cn(
-              "w-5 h-5",
-              isActive("/settings")
-                ? "text-[rgba(255,255,255,0.95)]"
-                : "text-[rgba(255,255,255,0.45)] group-hover:text-[rgba(255,255,255,0.8)]",
-            )}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            className={cn(
-              "text-[10px] font-medium tracking-wide",
-              isActive("/settings")
-                ? "text-[rgba(255,255,255,0.85)]"
-                : "text-[rgba(255,255,255,0.35)] group-hover:text-[rgba(255,255,255,0.7)]",
-            )}
-          >
-            Settings
-          </span>
-        </Link>
+          {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
+          {!collapsed && <span className="text-[13px] font-medium">Collapse</span>}
+        </button>
       </div>
-    </aside>
+
+      {/* User section */}
+      <div className={cn("border-t border-white/[0.06] py-4 px-4", collapsed && "flex justify-center px-2")}>
+        <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}>
+          <div className="w-8 h-8 rounded-full bg-white/[0.08] ring-1 ring-white/10 shrink-0" />
+          {!collapsed && (
+            <div className="flex flex-col min-w-0">
+              <span className="text-[13px] font-medium text-white/80 truncate">Account</span>
+              <span className="text-[11px] text-white/40">Member</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 h-screen border-r border-white/[0.06] flex-col z-40 transition-all duration-200 hidden md:flex [background:linear-gradient(180deg,#1A1A1A_0%,#151515_100%)]",
+          collapsed ? "w-14" : "w-64",
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile overlay sidebar */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={onMobileClose} />
+          <aside className="absolute left-0 top-0 w-64 h-screen bg-[--sidebar-bg] border-r border-white/[0.06] flex flex-col">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={onMobileClose}
+              className="absolute top-4 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] z-10"
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

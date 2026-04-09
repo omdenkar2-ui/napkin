@@ -15,16 +15,16 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled}
         className={cn(
-          "inline-flex items-center justify-center rounded-[8px] font-medium transition-colors",
+          "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-150",
           "disabled:opacity-50 disabled:pointer-events-none",
           {
-            "bg-white text-black hover:bg-[rgba(255,255,255,0.9)] border-none":
+            "bg-[--primary] text-[--primary-text] hover:bg-[--primary-hover] border-none":
               variant === "primary",
-            "bg-[rgba(255,255,255,0.06)] text-foreground border border-border hover:bg-[rgba(255,255,255,0.1)]":
+            "bg-[--surface] text-[--text-primary] border border-[--border] hover:bg-[--surface-alt] hover:border-[--border-strong]":
               variant === "secondary",
-            "text-foreground hover:bg-[rgba(255,255,255,0.06)]":
+            "text-[--text-primary] hover:bg-[--surface-alt]":
               variant === "ghost",
-            "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20":
+            "bg-[--error-soft] text-[--error] border border-[--error-soft] hover:bg-[--error]/10":
               variant === "destructive",
           },
           {

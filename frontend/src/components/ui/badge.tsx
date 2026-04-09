@@ -13,17 +13,17 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded px-2.5 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold",
         {
-          "bg-card-bg text-text-secondary border border-border": variant === "default",
-          "bg-[rgba(72,199,142,0.15)] text-accent-green": variant === "success",
-          "bg-[rgba(255,199,72,0.15)] text-accent-yellow": variant === "warning",
-          "bg-[rgba(255,80,80,0.15)] text-accent-red": variant === "error",
-          "bg-[rgba(255,80,80,0.15)] text-accent-red font-semibold uppercase tracking-wide":
+          "bg-[--surface-alt] text-[--text-secondary] border border-[--border]": variant === "default",
+          "bg-[#E6F7EF] text-[#166534] border border-[#BBF7D0]": variant === "success",
+          "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]": variant === "warning",
+          "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]": variant === "error",
+          "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA] uppercase tracking-[0.08em]":
             variant === "critical",
-          "bg-[rgba(255,199,72,0.15)] text-accent-yellow font-semibold uppercase tracking-wide":
+          "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] uppercase tracking-[0.08em]":
             variant === "opportunity",
-          "bg-[rgba(99,130,255,0.15)] text-accent-blue font-semibold uppercase tracking-wide":
+          "bg-[#E8F4F6] text-[#1B6B7A] border border-[#B2DDE5] uppercase tracking-[0.08em]":
             variant === "insight",
         },
         className,

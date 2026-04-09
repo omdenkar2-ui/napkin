@@ -41,10 +41,10 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
         if (e.target === overlayRef.current) onClose();
       }}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
       <div
         className={cn(
-          "relative z-10 w-full max-w-md rounded-[8px] bg-surface border border-border p-6",
+          "relative z-10 w-full max-w-md rounded-2xl bg-[--surface] border border-[--border]/50 p-6 shadow-2xl",
           "animate-in fade-in zoom-in-95",
           className,
         )}
@@ -61,7 +61,7 @@ export function DialogTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn("text-lg font-semibold text-foreground mb-2", className)}
+      className={cn("text-[18px] font-semibold text-[--text-primary] tracking-tight mb-2", className)}
       {...props}
     />
   );
@@ -71,5 +71,5 @@ export function DialogDescription({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-text-secondary mb-6", className)} {...props} />;
+  return <p className={cn("text-[14px] text-[--text-muted] mb-6", className)} {...props} />;
 }

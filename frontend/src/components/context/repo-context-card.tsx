@@ -58,7 +58,7 @@ export function RepoContextCard({ projectId }: RepoContextCardProps) {
               type="button"
               onClick={() => syncMutation.mutate()}
               disabled={syncMutation.isPending}
-              className="text-text-tertiary hover:text-foreground transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.06)]"
+              className="text-text-tertiary hover:text-foreground transition-colors p-1 rounded-md hover:bg-surface-hover"
               title="Sync now"
             >
               {syncMutation.isPending ? (

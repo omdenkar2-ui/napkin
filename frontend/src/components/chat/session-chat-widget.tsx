@@ -18,7 +18,7 @@ const orbStyles = `
 
 .chat-orb {
   border-radius: 50%;
-  background: oklch(15% 0 0);
+  background: var(--surface-active);
   position: relative;
   flex-shrink: 0;
 }
@@ -30,11 +30,11 @@ const orbStyles = `
   border-radius: 50%;
   background: conic-gradient(
     from var(--angle),
-    oklch(40% 0 0) 0%,
-    oklch(25% 0 0) 25%,
-    oklch(40% 0 0) 50%,
-    oklch(25% 0 0) 75%,
-    oklch(40% 0 0) 100%
+    var(--border-strong) 0%,
+    var(--border) 25%,
+    var(--border-strong) 50%,
+    var(--border) 75%,
+    var(--border-strong) 100%
   );
   animation: spin 4s linear infinite;
   z-index: -1;
@@ -45,7 +45,7 @@ const orbStyles = `
   position: absolute;
   inset: 1px;
   border-radius: 50%;
-  background: oklch(15% 0 0);
+  background: var(--surface-active);
   z-index: -1;
 }
 `;
@@ -138,8 +138,8 @@ export function SessionChatWidget() {
           delay: showForm ? 0 : 0.08,
         }}
         style={{
-          background: "#1c1c1a",
-          border: `1px solid ${showForm ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)"}`,
+          background: "var(--surface)",
+          border: `1px solid ${showForm ? "var(--border-strong)" : "var(--border)"}`,
           overflow: "hidden",
           position: "relative",
         }}
@@ -167,7 +167,7 @@ export function SessionChatWidget() {
               <button
                 type="button"
                 onClick={() => setShowForm(true)}
-                className="text-[13px] font-medium text-[rgba(255,255,255,0.70)] hover:text-[rgba(255,255,255,0.90)] transition-colors px-2"
+                className="text-[13px] font-medium text-[--text-secondary] hover:text-[--text-primary] transition-colors px-2"
               >
                 Ask AI
               </button>
@@ -204,7 +204,7 @@ export function SessionChatWidget() {
                   pointerEvents: "none",
                 }}
               >
-                <span className="text-[13px] text-[rgba(255,255,255,0.60)] ml-9">
+                <span className="text-[13px] text-[--text-secondary] ml-9">
                   Ask AI
                 </span>
               </div>
@@ -220,10 +220,10 @@ export function SessionChatWidget() {
                   gap: 3,
                 }}
               >
-                <kbd className="text-[rgba(255,255,255,0.28)] text-[11px] font-sans border border-[rgba(255,255,255,0.12)] rounded px-1.5 py-0.5">
+                <kbd className="text-[--text-disabled] text-[11px] font-sans border border-[--border] rounded px-1.5 py-0.5">
                   ⌘
                 </kbd>
-                <kbd className="text-[rgba(255,255,255,0.28)] text-[11px] font-sans border border-[rgba(255,255,255,0.12)] rounded px-1.5 py-0.5">
+                <kbd className="text-[--text-disabled] text-[11px] font-sans border border-[--border] rounded px-1.5 py-0.5">
                   Enter
                 </kbd>
               </div>
@@ -235,7 +235,7 @@ export function SessionChatWidget() {
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask anything about this session..."
-                className="w-full h-full resize-none bg-transparent outline-none text-[13px] text-[rgba(255,255,255,0.88)] placeholder:text-[rgba(255,255,255,0.28)] p-3 pt-8 scroll-py-2"
+                className="w-full h-full resize-none bg-transparent outline-none text-[13px] text-[--text-primary] placeholder:text-[--text-disabled] p-3 pt-8 scroll-py-2"
                 style={{ display: "block" }}
               />
 
@@ -246,8 +246,8 @@ export function SessionChatWidget() {
                 disabled={!isActive}
                 className={`h-7 px-3 rounded-md text-[12px] font-medium absolute bottom-2 right-2 transition-colors ${
                   isActive
-                    ? "bg-white text-black"
-                    : "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.20)] cursor-not-allowed"
+                    ? "bg-[--primary] text-[--primary-text]"
+                    : "bg-[--surface-hover] text-[--text-disabled] cursor-not-allowed"
                 }`}
               >
                 Send

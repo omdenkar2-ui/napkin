@@ -1,241 +1,68 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { getOrCreateDefaultProject } from "@/lib/api/projects";
-import { createSession, listSessions } from "@/lib/api/sessions";
-import { formatRelative } from "@/lib/utils";
-import { Spinner } from "@/components/ui/spinner";
-import { useAuth } from "@/providers/auth-provider";
-import {
-  FeedbackInput,
-  type FeedbackInputRef,
-} from "@/components/feedback/feedback-input";
-import { NapkinChat } from "@/components/chat/napkin-chat";
-import { RepoContextCard } from "@/components/context/repo-context-card";
-import type { SessionListItem } from "@/types/api";
-
-type InputMode = "upload" | "chat";
-
-const SAMPLE_FEEDBACK = `The search functionality is really slow when I have more than 50 items in my list. Takes 3-4 seconds every time.
-
-I wish I could export my data to CSV. I've been manually copying rows for weeks now.
-
-Would love a dark mode option. The bright white is hard on my eyes when working late.
-
-Notifications keep coming even after I've marked things as read. Super annoying, happens every day.`;
-
-function sessionTitle(session: SessionListItem): string {
-  return session.title ?? `Analysis from ${formatRelative(session.created_at)}`;
-}
-
-function isProcessing(session: SessionListItem): boolean {
-  return session.stage !== "done" && session.stage !== "error";
-}
+import { Sparkles } from "lucide-react";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { QuickActions } from "@/components/dashboard/quick-actions";
+import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { PageTransition } from "@/components/ui/page-transition";
+import { StaggerList, StaggerItem } from "@/components/ui/stagger-list";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const feedbackRef = useRef<FeedbackInputRef>(null);
+  const isLoading = false; // Will be replaced with React Query loading state
 
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [initializing, setInitializing] = useState(true);
-  const [inputMode, setInputMode] = useState<InputMode>("upload");
-
-  useEffect(() => {
-    getOrCreateDefaultProject()
-      .then((p) => {
-        setProjectId(p.id);
-        setInitializing(false);
-      })
-      .catch(() => router.replace("/setup"));
-  }, [router]);
-
-  const { data: sessions } = useQuery({
-    queryKey: ["sessions", projectId],
-    queryFn: () => listSessions(projectId!, 5, 0),
-    enabled: !!projectId,
-    refetchInterval: 5000,
-  });
-
-  const handleSubmit = async (texts: string[]) => {
-    if (!projectId) {
-      toast.error("Not ready yet");
-      return;
-    }
-    if (texts.length === 0) {
-      toast.error("No feedback found");
-      return;
-    }
-    try {
-      const result = await createSession({
-        project_id: projectId,
-        initial_feedback: { texts },
-      });
-      router.push(`/s/${result.session_id}`);
-    } catch {
-      toast.error("Failed to start analysis");
-      throw new Error("submit failed");
-    }
-  };
-
-  const sessionList = sessions ?? [];
-  const hasAnySessions = sessionList.length > 0;
-
-  const userName =
-    (user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
-    (user?.user_metadata?.name as string | undefined)?.split(" ")[0] ||
-    user?.email?.split("@")[0] ||
-    null;
-
-  if (initializing) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner size="md" />
+      <div>
+        <div className="h-14 border-b border-[#E5E2DC] flex items-center justify-between px-8 bg-[--background]">
+          <h1 className="text-[20px] font-semibold tracking-tight text-[#1A1A1A]">Home</h1>
+        </div>
+        <DashboardSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4">
-      <div className="w-full max-w-[600px] flex flex-col items-center">
-
-        {/* Greeting */}
-        <h1 className="text-[28px] font-medium text-foreground tracking-[-0.02em] text-center mb-8">
-          {hasAnySessions
-            ? userName ? `Hello again, ${userName}` : "Hello again"
-            : "Welcome to Napkin"}
+    <div>
+      {/* Page header */}
+      <div className="h-14 border-b border-[#E5E2DC] flex items-center justify-between px-8 bg-[--background]">
+        <h1 className="text-[20px] font-semibold tracking-tight text-[#1A1A1A]">
+          Home
         </h1>
-
-        {/* Mode toggle: Upload Data vs Ask Napkin */}
-        <div className="flex items-center gap-1 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)] rounded-lg p-1 mb-6">
-          <button
-            type="button"
-            onClick={() => setInputMode("upload")}
-            className={`flex-1 px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
-              inputMode === "upload"
-                ? "bg-[rgba(255,255,255,0.08)] text-foreground"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            Upload Data
-          </button>
-          <button
-            type="button"
-            onClick={() => setInputMode("chat")}
-            className={`flex-1 px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
-              inputMode === "chat"
-                ? "bg-[rgba(255,255,255,0.08)] text-foreground"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            Ask Napkin
-          </button>
-        </div>
-
-        {/* Repo context card (shown above input if connected) */}
-        {projectId && <RepoContextCard projectId={projectId} />}
-
-        {/* Upload mode */}
-        {inputMode === "upload" && (
-          <>
-            <FeedbackInput
-              ref={feedbackRef}
-              onSubmit={handleSubmit}
-              minTextareaHeight="80px"
-              placeholder="Paste customer feedback to discover patterns..."
-            />
-
-            {/* Suggestion chips */}
-            <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
-              <button
-                type="button"
-                onClick={() => feedbackRef.current?.openFilePicker()}
-                className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
-              >
-                Upload CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => feedbackRef.current?.focusTextarea()}
-                className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
-              >
-                Paste interview notes
-              </button>
-              <button
-                type="button"
-                onClick={() => feedbackRef.current?.fillText(SAMPLE_FEEDBACK)}
-                className="px-3 py-1.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[12px] text-text-tertiary hover:text-text-secondary hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer"
-              >
-                Try with sample data
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* Chat mode */}
-        {inputMode === "chat" && projectId && (
-          <div className="w-full" style={{ height: "500px" }}>
-            <NapkinChat projectId={projectId} />
-          </div>
-        )}
-
-        {/* No sessions helper */}
-        {!hasAnySessions && inputMode === "upload" && (
-          <p className="text-[13px] text-text-ghost text-center mt-8">
-            Turn customer feedback into evidence-backed specs.
-          </p>
-        )}
-
-        {/* Recent sessions */}
-        {hasAnySessions && (
-          <div className="w-full mt-14">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-ghost mb-3">
-              Recent
-            </p>
-            <div>
-              {sessionList.map((session) => (
-                <Link
-                  key={session.id}
-                  href={`/s/${session.id}`}
-                  className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors"
-                >
-                  <span className="text-sm text-foreground truncate flex-1 min-w-0">
-                    {sessionTitle(session)}
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0 ml-4">
-                    <span className="text-xs text-text-ghost">
-                      {formatRelative(session.created_at)}
-                    </span>
-                    {session.stage === "done" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
-                    )}
-                    {session.stage === "error" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent-red" />
-                    )}
-                    {isProcessing(session) && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse" />
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-            {sessionList.length >= 5 && (
-              <div className="mt-2 text-center">
-                <Link
-                  href="/sessions"
-                  className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-                >
-                  View all →
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={() => router.push("/sessions/new")}
+          className="inline-flex items-center gap-2 h-9 px-4 bg-[--primary] text-[--primary-text] rounded-lg text-sm font-medium hover:bg-[--primary-hover] transition-colors"
+        >
+          <Sparkles className="w-4 h-4" />
+          New Session
+        </button>
       </div>
+
+      <PageTransition>
+        <div className="p-4 md:p-8 flex flex-col gap-6">
+          {/* Row 1 — Stat Cards */}
+          <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StaggerItem>
+              <StatCard label="Data Points" value="12,847" subtitle="Across all sources" accentColor="#1B6B7A" trend={{ value: "+18%", direction: "up" }} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Active Sources" value="5" subtitle="of 7 connected" accentColor="#22A06B" />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Sessions" value="23" subtitle="Last 30 days" accentColor="#2D7FF9" trend={{ value: "+3", direction: "up" }} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Pending Tasks" value="12" subtitle="Awaiting review" accentColor="#CF9F02" />
+            </StaggerItem>
+          </StaggerList>
+
+          <QuickActions />
+          <ActivityFeed />
+        </div>
+      </PageTransition>
     </div>
   );
 }

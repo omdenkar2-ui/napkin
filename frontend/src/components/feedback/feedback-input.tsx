@@ -80,13 +80,13 @@ function TextualFilePreviewCard({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="relative group rounded-lg w-[125px] h-[125px] flex-shrink-0 overflow-hidden bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)]">
-      <div className="text-[8px] text-[rgba(255,255,255,0.45)] whitespace-pre-wrap break-words p-2.5 overflow-hidden h-full leading-tight">
+    <div className="relative group rounded-lg w-[125px] h-[125px] flex-shrink-0 overflow-hidden bg-[--surface-hover] border border-[--border]">
+      <div className="text-[8px] text-[--text-muted] whitespace-pre-wrap break-words p-2.5 overflow-hidden h-full leading-tight">
         {file.textContent ?? "Loading..."}
       </div>
 
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#161614] flex items-end p-2 pointer-events-none">
-        <span className="text-[10px] font-medium text-white uppercase bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.12)] px-2 py-0.5 rounded-md">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[--surface-alt] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] font-medium text-[--text-primary] uppercase bg-[--surface-active] border border-[--border] px-2 py-0.5 rounded-md">
           {getFileExtension(file.file.name)}
         </span>
       </div>
@@ -95,10 +95,10 @@ function TextualFilePreviewCard({
         <button
           type="button"
           onClick={() => onRemove(file.id)}
-          className="w-5 h-5 rounded-full bg-[rgba(0,0,0,0.7)] border border-[rgba(255,255,255,0.15)] flex items-center justify-center hover:bg-[rgba(0,0,0,0.9)] transition-colors"
+          className="w-5 h-5 rounded-full bg-[--surface-active] border border-[--border-strong] flex items-center justify-center hover:bg-[--surface-hover] transition-colors"
           title="Remove"
         >
-          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-3 h-3 text-[--text-secondary]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -116,7 +116,7 @@ function GenericFilePreviewCard({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="relative group rounded-lg w-[125px] h-[125px] flex-shrink-0 overflow-hidden bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)]">
+    <div className="relative group rounded-lg w-[125px] h-[125px] flex-shrink-0 overflow-hidden bg-[--surface-hover] border border-[--border]">
       {file.type.startsWith("image/") && file.preview ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -135,8 +135,8 @@ function GenericFilePreviewCard({
         </div>
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#161614] flex items-end p-2 pointer-events-none">
-        <span className="text-[10px] font-medium text-white uppercase bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.12)] px-2 py-0.5 rounded-md">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[--surface-alt] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] font-medium text-[--text-primary] uppercase bg-[--surface-active] border border-[--border] px-2 py-0.5 rounded-md">
           {getFileExtension(file.file.name)}
         </span>
       </div>
@@ -145,10 +145,10 @@ function GenericFilePreviewCard({
         <button
           type="button"
           onClick={() => onRemove(file.id)}
-          className="w-5 h-5 rounded-full bg-[rgba(0,0,0,0.7)] border border-[rgba(255,255,255,0.15)] flex items-center justify-center hover:bg-[rgba(0,0,0,0.9)] transition-colors"
+          className="w-5 h-5 rounded-full bg-[--surface-active] border border-[--border-strong] flex items-center justify-center hover:bg-[--surface-hover] transition-colors"
           title="Remove"
         >
-          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-3 h-3 text-[--text-secondary]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -166,14 +166,14 @@ function PastedContentCard({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="relative group rounded-lg w-[125px] h-[125px] flex-shrink-0 overflow-hidden bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)]">
-      <div className="text-[8px] text-[rgba(255,255,255,0.45)] whitespace-pre-wrap break-words p-2.5 overflow-hidden h-full leading-tight">
+    <div className="relative group rounded-lg w-[125px] h-[125px] flex-shrink-0 overflow-hidden bg-[--surface-hover] border border-[--border]">
+      <div className="text-[8px] text-[--text-muted] whitespace-pre-wrap break-words p-2.5 overflow-hidden h-full leading-tight">
         {content.content.slice(0, 150)}
         {content.content.length > 150 && "..."}
       </div>
 
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#161614] flex items-end p-2 pointer-events-none">
-        <span className="text-[10px] font-medium text-white uppercase bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.12)] px-2 py-0.5 rounded-md">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[--surface-alt] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] font-medium text-[--text-primary] uppercase bg-[--surface-active] border border-[--border] px-2 py-0.5 rounded-md">
           PASTED
         </span>
       </div>
@@ -182,10 +182,10 @@ function PastedContentCard({
         <button
           type="button"
           onClick={() => navigator.clipboard.writeText(content.content)}
-          className="w-5 h-5 rounded-full bg-[rgba(0,0,0,0.7)] border border-[rgba(255,255,255,0.15)] flex items-center justify-center hover:bg-[rgba(0,0,0,0.9)] transition-colors"
+          className="w-5 h-5 rounded-full bg-[--surface-active] border border-[--border-strong] flex items-center justify-center hover:bg-[--surface-hover] transition-colors"
           title="Copy"
         >
-          <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-2.5 h-2.5 text-[--text-secondary]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="9" y="9" width="13" height="13" rx="2" />
             <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
           </svg>
@@ -193,10 +193,10 @@ function PastedContentCard({
         <button
           type="button"
           onClick={() => onRemove(content.id)}
-          className="w-5 h-5 rounded-full bg-[rgba(0,0,0,0.7)] border border-[rgba(255,255,255,0.15)] flex items-center justify-center hover:bg-[rgba(0,0,0,0.9)] transition-colors"
+          className="w-5 h-5 rounded-full bg-[--surface-active] border border-[--border-strong] flex items-center justify-center hover:bg-[--surface-hover] transition-colors"
           title="Remove"
         >
-          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-3 h-3 text-[--text-secondary]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -427,18 +427,18 @@ export const FeedbackInput = forwardRef<FeedbackInputRef, FeedbackInputProps>(
       >
         {/* Drag overlay */}
         {isDragging && (
-          <div className="absolute inset-0 z-50 bg-[rgba(255,255,255,0.03)] border-2 border-dashed border-[rgba(255,255,255,0.20)] rounded-2xl flex items-center justify-center pointer-events-none">
-            <p className="text-sm text-text-secondary">Drop files here</p>
+          <div className="absolute inset-0 z-50 bg-[--primary-soft] border-2 border-dashed border-[--primary] rounded-2xl flex items-center justify-center pointer-events-none">
+            <p className="text-sm text-[--text-secondary]">Drop files here</p>
           </div>
         )}
 
         {/* Main card */}
         <div
           className={cn(
-            "bg-[#1c1c1a] border rounded-2xl shadow-lg flex flex-col min-h-[150px] transition-colors",
+            "bg-[--surface] border rounded-2xl shadow-lg flex flex-col min-h-[150px] transition-colors",
             isFocused
-              ? "border-[rgba(255,255,255,0.15)]"
-              : "border-[rgba(255,255,255,0.08)]",
+              ? "border-[--border-strong]"
+              : "border-[--border]",
           )}
         >
           {/* Section A: Textarea */}
@@ -454,7 +454,7 @@ export const FeedbackInput = forwardRef<FeedbackInputRef, FeedbackInputProps>(
             disabled={disabled}
             style={{ minHeight: minTextareaHeight }}
             rows={1}
-            className="flex-1 w-full p-4 bg-transparent border-none outline-none resize-none text-foreground text-sm leading-relaxed placeholder:text-text-tertiary max-h-[300px] disabled:opacity-50 focus:outline-none focus:ring-0 focus:border-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="flex-1 w-full p-4 bg-transparent border-none outline-none resize-none text-[--text-primary] text-sm leading-relaxed placeholder:text-[--text-muted] max-h-[300px] disabled:opacity-50 focus:outline-none focus:ring-0 focus:border-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
 
           {/* Section B: Action Bar — NO border-top, blends with textarea */}
@@ -464,7 +464,7 @@ export const FeedbackInput = forwardRef<FeedbackInputRef, FeedbackInputProps>(
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || files.length >= 10}
-                className="h-9 w-9 flex items-center justify-center rounded-lg text-[rgba(255,255,255,0.35)] hover:text-[rgba(255,255,255,0.65)] hover:bg-[rgba(255,255,255,0.05)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="h-9 w-9 flex items-center justify-center rounded-lg text-[--text-muted] hover:text-[--text-secondary] hover:bg-[--surface-hover] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <svg
                   className="w-5 h-5"
@@ -489,13 +489,13 @@ export const FeedbackInput = forwardRef<FeedbackInputRef, FeedbackInputProps>(
                 className={cn(
                   "h-9 w-9 flex items-center justify-center rounded-lg transition-all",
                   canSend && !disabled
-                    ? "bg-white text-black hover:opacity-90 cursor-pointer"
-                    : "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.20)] cursor-not-allowed",
+                    ? "bg-[--primary] text-[--primary-text] hover:bg-[--primary-hover] cursor-pointer"
+                    : "bg-[--surface-hover] text-[--text-disabled] cursor-not-allowed",
                 )}
                 title="Analyze feedback"
               >
                 {isSubmitting ? (
-                  <Spinner size="sm" className="text-black" />
+                  <Spinner size="sm" className="text-[--primary-text]" />
                 ) : (
                   <svg
                     className="w-5 h-5"
@@ -516,7 +516,7 @@ export const FeedbackInput = forwardRef<FeedbackInputRef, FeedbackInputProps>(
 
           {/* Section C: File preview strip — BELOW action bar */}
           {hasFilePreviews && (
-            <div className="overflow-x-auto hide-scrollbar border-t border-[rgba(255,255,255,0.06)] p-3 bg-[#161614] rounded-b-2xl">
+            <div className="overflow-x-auto hide-scrollbar border-t border-[--border] p-3 bg-[--surface-alt] rounded-b-2xl">
               <div className="flex gap-3">
                 {pastedContent.map((pc) => (
                   <PastedContentCard

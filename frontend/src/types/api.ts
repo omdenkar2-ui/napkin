@@ -1,4 +1,6 @@
 // TypeScript types mirroring backend Pydantic schemas
+// Part 1: Existing backend types (Pydantic mirrors)
+// Part 2: Frontend platform UI types (added for backend integration)
 
 export type SessionStage =
   | "intake"
@@ -235,4 +237,241 @@ export interface Opportunity {
 export interface PrioritizationResult {
   opportunities: Opportunity[];
   recommended: string;
+}
+
+// ============================================
+// PART 2: FRONTEND PLATFORM UI TYPES
+// ============================================
+
+// ============================================
+// WORKSPACE
+// ============================================
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
+// ============================================
+// USER / TEAM
+// ============================================
+export interface Profile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  title?: string;
+  product_areas: string[];
+  tools: string[];
+  avatar_url?: string;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: "admin" | "member" | "viewer";
+  status: "active" | "pending" | "deactivated";
+  profile: Profile;
+  created_at: string;
+}
+
+// ============================================
+// INTEGRATIONS / SOURCES
+// ============================================
+export interface Integration {
+  id: string;
+  workspace_id: string;
+  type: "slack" | "intercom" | "zoom" | "typeform" | "notion" | "email" | "spreadsheet";
+  status: "connected" | "disconnected" | "error";
+  config: Record<string, unknown>;
+  item_count: number;
+  last_sync_at?: string;
+  created_at: string;
+}
+
+// ============================================
+// PLATFORM SESSION (UI-facing)
+// ============================================
+export interface PlatformSession {
+  id: string;
+  workspace_id: string;
+  name: string;
+  status: "processing" | "completed" | "failed";
+  sources: string[];
+  uploaded_files: PlatformUploadedFile[];
+  data_point_count: number;
+  summary: string;
+  patterns: Pattern[];
+  sentiment: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  sentiment_change: number;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface Pattern {
+  id: string;
+  session_id: string;
+  name: string;
+  description: string;
+  feedback_count: number;
+  sentiment: "positive" | "neutral" | "negative" | "mixed";
+  confidence: "high" | "medium" | "low";
+  evidence: EvidenceItem[];
+}
+
+export interface EvidenceItem {
+  id: string;
+  source: string;
+  source_channel?: string;
+  content: string;
+  customer_name?: string;
+  sentiment: "positive" | "neutral" | "negative";
+  created_at: string;
+}
+
+export interface PlatformUploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  status: "uploaded" | "processing" | "processed" | "error";
+  created_at: string;
+}
+
+// ============================================
+// TASKS
+// ============================================
+export interface PlatformTask {
+  id: string;
+  workspace_id: string;
+  session_id: string;
+  pattern_id: string;
+  title: string;
+  description: string;
+  assignee: Pick<Profile, "id" | "full_name" | "avatar_url"> | null;
+  priority: "p0" | "p1" | "p2" | "p3";
+  status: "pending" | "approved" | "sent" | "discarded";
+  destination?: "linear" | "google_sheets" | "csv";
+  labels: string[];
+  evidence_count: number;
+  source_pattern: string;
+  created_at: string;
+  sent_at?: string;
+}
+
+// ============================================
+// WORKFLOWS
+// ============================================
+export interface Workflow {
+  id: string;
+  workspace_id: string;
+  name: string;
+  sources: string[];
+  schedule_frequency: "daily" | "weekly" | "monthly" | "manual";
+  schedule_day?: number;
+  schedule_time?: string;
+  schedule_timezone: string;
+  options: {
+    identify_patterns: boolean;
+    analyze_sentiment: boolean;
+    auto_generate_tasks: boolean;
+    notify_team: boolean;
+  };
+  status: "active" | "paused";
+  last_run_at?: string;
+  created_at: string;
+}
+
+// ============================================
+// CHAT
+// ============================================
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  tasks?: { title: string; priority: string }[];
+  created_at: string;
+}
+
+// ============================================
+// ACTIVITY
+// ============================================
+export interface ActivityItem {
+  id: string;
+  workspace_id: string;
+  type: "session_completed" | "tasks_approved" | "source_synced" | "tasks_done" | "session_scheduled" | "source_connected";
+  description: string;
+  created_at: string;
+}
+
+// ============================================
+// DASHBOARD STATS
+// ============================================
+export interface DashboardStats {
+  data_points: { value: number; trend_percent: number };
+  active_sources: { value: number; total: number };
+  sessions: { value: number; trend: number };
+  pending_tasks: { value: number };
+}
+
+// ============================================
+// API REQUEST TYPES
+// ============================================
+export interface CreatePlatformSessionRequest {
+  name: string;
+  sources: string[];
+  files: File[];
+  context_text?: string;
+  options: {
+    identify_patterns: boolean;
+    analyze_sentiment: boolean;
+    auto_generate_tasks: boolean;
+  };
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  description?: string;
+  assignee_id?: string;
+  priority?: "p0" | "p1" | "p2" | "p3";
+  status?: "pending" | "approved" | "sent" | "discarded";
+  labels?: string[];
+}
+
+export interface SendTasksRequest {
+  task_ids: string[];
+  destination: "linear" | "google_sheets" | "csv";
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role: "admin" | "member" | "viewer";
+  message?: string;
+}
+
+export interface CreateWorkflowRequest {
+  name: string;
+  sources: string[];
+  schedule_frequency: "daily" | "weekly" | "monthly" | "manual";
+  schedule_day?: number;
+  schedule_time?: string;
+  schedule_timezone: string;
+  options: {
+    identify_patterns: boolean;
+    analyze_sentiment: boolean;
+    auto_generate_tasks: boolean;
+    notify_team: boolean;
+  };
+}
+
+export interface SendChatMessageRequest {
+  session_id: string;
+  content: string;
 }
