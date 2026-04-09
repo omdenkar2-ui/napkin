@@ -38,10 +38,10 @@ def check_evidence_gate(signals: list[dict]) -> GateCheck:
     """
     blockers: list[str] = []
 
-    if len(signals) < 3:
+    if len(signals) < 1:
         blockers.append(
-            f"Need at least 3 feedback items (got {len(signals)}). "
-            "Please paste more customer feedback."
+            f"Need at least 1 feedback item (got {len(signals)}). "
+            "Please paste some customer feedback."
         )
 
     # Collect unique segments and sources for diversity check
@@ -49,7 +49,7 @@ def check_evidence_gate(signals: list[dict]) -> GateCheck:
     sources = {s.get("source_label") for s in signals if s.get("source_label")}
     diverse_count = len(segments | sources)
 
-    if diverse_count < 2 and len(signals) >= 3:
+    if diverse_count < 2 and len(signals) >= 5:
         blockers.append(
             "Need more diverse sources — at least 2 unique segments or source labels."
         )
@@ -83,9 +83,9 @@ def check_pattern_quality_gate(pattern_report: dict | None) -> GateCheck:
     blockers: list[str] = []
     clusters = pattern_report.get("clusters", [])
 
-    if len(clusters) < 2:
+    if len(clusters) < 1:
         blockers.append(
-            f"Need at least 2 theme clusters (got {len(clusters)})."
+            f"Need at least 1 theme cluster (got {len(clusters)})."
         )
 
     for cluster in clusters:

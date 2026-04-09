@@ -170,6 +170,26 @@ Remember: EVERY category must have at least 1 item. Low confidence is fine — e
     if not report["top_pains"]:
         report["top_pains"] = [ci.get("title", "") for ci in report["critical_issues"]]
 
+    # Build clusters from critical_issues so the frontend has displayable PatternCards.
+    # For small datasets (1-5 signals) there are no KMeans/LLM clusters, but critical_issues
+    # contain the same data the frontend needs.
+    if not report["clusters"]:
+        report["clusters"] = [
+            {
+                "cluster_id": i,
+                "label": ci.get("title", "Issue"),
+                "pain_summary": ci.get("description", ""),
+                "severity_score": ci.get("severity", 5),
+                "confidence": ci.get("confidence", 0.5),
+                "evidence_quotes": ci.get("evidence", []),
+                "affected_segments": ci.get("affected_segments", []),
+                "recommended_action": ci.get("recommended_action", ""),
+                "frequency": ci.get("frequency", 1),
+                "signal_ids": [],
+            }
+            for i, ci in enumerate(report["critical_issues"])
+        ]
+
     return report
 
 

@@ -599,9 +599,16 @@ export default function SessionViewPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedCluster, setSelectedCluster] = useState<any>(null);
 
-  const patternReport = session?.pattern_report as Record<string, unknown> ?? {};
+  const patternReport = (session?.pattern_report as Record<string, unknown>) ?? {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clusters: any[] = (patternReport?.clusters as any[]) ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const criticalIssues: any[] = (patternReport?.critical_issues as any[]) ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const valuableInsights: any[] = (patternReport?.valuable_insights as any[]) ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const futureOpportunities: any[] = (patternReport?.future_opportunities as any[]) ?? [];
+  const hasPatterns = clusters.length > 0 || criticalIssues.length > 0 || valuableInsights.length > 0 || futureOpportunities.length > 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleShowSpec = (cluster: any) => {
@@ -661,8 +668,11 @@ export default function SessionViewPage() {
     );
   }
 
-  /* Done but no patterns */
-  if (session?.stage === "done" && clusters.length === 0) {
+  /* Done but genuinely no patterns (all categories empty) */
+  if (session?.stage === "done" && !hasPatterns) {
+    console.log('[Napkin Debug] pattern_report:', session?.pattern_report);
+    console.log('[Napkin Debug] stage:', session?.stage);
+    console.log('[Napkin Debug] clusters:', clusters.length, 'critical:', criticalIssues.length, 'insights:', valuableInsights.length, 'opportunities:', futureOpportunities.length);
     return (
       <>
         <div className="max-w-[800px] mx-auto p-8">
@@ -691,6 +701,8 @@ export default function SessionViewPage() {
 
   /* Pattern cards — the magic moment */
   if (session) {
+    console.log('[Napkin Debug] Rendering patterns — pattern_report:', session?.pattern_report);
+    console.log('[Napkin Debug] stage:', session?.stage, 'clusters:', clusters.length);
     return (
       <>
         <div className="max-w-[800px] mx-auto p-8">
