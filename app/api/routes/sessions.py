@@ -416,6 +416,26 @@ async def list_sessions(
 
 # ── Session Lifecycle ───────────────────────────────────────────────
 
+@router.post("/{session_id}/retry", response_model=dict)
+async def retry_session_endpoint(
+    session_id: UUID,
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+):
+    """Retry a failed or stuck session."""
+    db = get_supabase_admin()
+    _verify_session_access(db, session_id, user)
+
+    service = get_session_service()
+    try:
+        return await service.retry_session(session_id, user_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
 @router.post("/{session_id}/archive", response_model=dict)
 async def archive_session_endpoint(
     session_id: UUID,

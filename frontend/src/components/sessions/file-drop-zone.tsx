@@ -9,6 +9,7 @@ export interface UploadedFile {
   name: string;
   size: string;
   type: string;
+  file?: File;
 }
 
 function formatFileSize(bytes: number): string {
@@ -33,6 +34,7 @@ export function FileDropZone({ files, onFilesAdd, onFileRemove }: FileDropZonePr
       name: f.name,
       size: formatFileSize(f.size),
       type: f.type || f.name.split(".").pop() || "unknown",
+      file: f,
     }));
     onFilesAdd(newFiles);
   }, [onFilesAdd]);

@@ -186,10 +186,45 @@ async def upload_feedback_file(
     elif filename.endswith(".csv"):
         import csv
         import io
-        reader = csv.reader(io.StringIO(content.decode("utf-8", errors="ignore")))
-        next(reader, None)  # skip header row
+        reader = csv.DictReader(io.StringIO(content.decode("utf-8", errors="ignore")))
+        fieldnames = reader.fieldnames or []
+        # Find the best feedback column by name
+        feedback_col_names = [
+            "review", "review_body", "feedback", "text", "comment", "content",
+            "message", "body", "note", "description", "summary", "response",
+            "input", "query", "question", "answer", "raw_text",
+        ]
+        text_col = None
+        for candidate in feedback_col_names:
+            for fn in fieldnames:
+                if fn.lower().strip() == candidate:
+                    text_col = fn
+                    break
+            if text_col:
+                break
+        # Fallback: pick the column with the longest average text
+        if not text_col and fieldnames:
+            sample_rows = []
+            for _i, row in enumerate(reader):
+                sample_rows.append(row)
+                if _i >= 20:
+                    break
+            if sample_rows:
+                avg_lens = {
+                    fn: sum(len(r.get(fn, "") or "") for r in sample_rows) / len(sample_rows)
+                    for fn in fieldnames
+                }
+                text_col = max(avg_lens, key=avg_lens.get)  # type: ignore[arg-type]
+                # Re-add sampled rows
+                for row in sample_rows:
+                    val = (row.get(text_col) or "").strip()
+                    if val:
+                        texts.append(val)
+        # Read remaining rows
         for row in reader:
-            texts.append(" | ".join(row))
+            val = (row.get(text_col) or "").strip() if text_col else " | ".join(row.values())
+            if val:
+                texts.append(val)
     elif filename.endswith(".docx"):
         import io
         from docx import Document
@@ -249,10 +284,40 @@ async def parse_feedback_file(
     elif filename.endswith(".csv"):
         import csv
         import io
-        reader = csv.reader(io.StringIO(content.decode("utf-8", errors="ignore")))
-        next(reader, None)
+        reader = csv.DictReader(io.StringIO(content.decode("utf-8", errors="ignore")))
+        fieldnames = reader.fieldnames or []
+        feedback_col_names = [
+            "review", "review_body", "feedback", "text", "comment", "content",
+            "message", "body", "note", "description", "summary", "response",
+        ]
+        text_col = None
+        for candidate in feedback_col_names:
+            for fn in fieldnames:
+                if fn.lower().strip() == candidate:
+                    text_col = fn
+                    break
+            if text_col:
+                break
+        if not text_col and fieldnames:
+            sample_rows = []
+            for _i, row in enumerate(reader):
+                sample_rows.append(row)
+                if _i >= 20:
+                    break
+            if sample_rows:
+                avg_lens = {
+                    fn: sum(len(r.get(fn, "") or "") for r in sample_rows) / len(sample_rows)
+                    for fn in fieldnames
+                }
+                text_col = max(avg_lens, key=avg_lens.get)  # type: ignore[arg-type]
+                for row in sample_rows:
+                    val = (row.get(text_col) or "").strip()
+                    if val:
+                        texts.append(val)
         for row in reader:
-            texts.append(" | ".join(row))
+            val = (row.get(text_col) or "").strip() if text_col else " | ".join(row.values())
+            if val:
+                texts.append(val)
     elif filename.endswith(".tsv"):
         import io
         lines = content.decode("utf-8", errors="ignore").split("\n")

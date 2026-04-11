@@ -2,6 +2,7 @@
 
 import { SidebarProvider, useSidebar, MobileMenuButton } from "@/components/layout/sidebar";
 import { CommandPalette } from "@/components/command-palette/command-palette";
+import { ProjectProvider } from "@/providers/project-provider";
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
@@ -25,11 +26,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <div className="min-h-screen">
-        <AppContent>{children}</AppContent>
-        <CommandPalette />
-      </div>
-    </SidebarProvider>
+    <ProjectProvider>
+      <SidebarProvider>
+        <div className="min-h-screen">
+          <AppContent>{children}</AppContent>
+          <CommandPalette />
+        </div>
+      </SidebarProvider>
+    </ProjectProvider>
   );
 }

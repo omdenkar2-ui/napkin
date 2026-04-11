@@ -40,6 +40,45 @@ def _configure_logging():
     )
 
 
+def _recover_stuck_sessions():
+    """Mark orphaned sessions as error on startup.
+
+    Any session with status='active' and stage not in ('done','error') is
+    definitionally stuck — all asyncio tasks from the previous process are gone.
+    """
+    from datetime import UTC, datetime
+    from app.db.client import get_supabase_admin
+
+    db = get_supabase_admin()
+    stuck = (
+        db.table("sessions")
+        .select("id")
+        .eq("status", "active")
+        .neq("stage", "done")
+        .neq("stage", "error")
+        .execute()
+    )
+
+    if not stuck.data:
+        return 0
+
+    stuck_ids = [s["id"] for s in stuck.data]
+    now = datetime.now(UTC).isoformat()
+
+    for sid in stuck_ids:
+        db.table("sessions").update({
+            "stage": "error",
+            "status": "error",
+            "messages": [{
+                "role": "assistant",
+                "content": "Analysis was interrupted. Click Retry to resume.",
+                "timestamp": now,
+            }],
+        }).eq("id", sid).execute()
+
+    return len(stuck_ids)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle — startup and shutdown hooks."""
@@ -52,6 +91,14 @@ async def lifespan(app: FastAPI):
         environment=settings.app_env.value,
         debug=settings.app_debug,
     )
+
+    # Recover sessions stuck from a previous crash/restart
+    try:
+        recovered = _recover_stuck_sessions()
+        if recovered:
+            logger.info("recovered_stuck_sessions", count=recovered)
+    except Exception as exc:
+        logger.warning("recovery_failed", error=str(exc))
 
     # Startup: Initialize Sentry if configured
     if settings.sentry_dsn:

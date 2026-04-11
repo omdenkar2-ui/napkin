@@ -7,7 +7,7 @@ Creates sessions and launches the background pipeline.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -51,6 +51,7 @@ class SessionService:
             "stage_history": [
                 {"stage": "intake", "entered_at": datetime.now(UTC).isoformat()}
             ],
+            "intake_summary": {"raw_texts": initial_feedback} if initial_feedback else None,
         }
 
         self.db.table("sessions").insert(session_data).execute()
@@ -101,7 +102,7 @@ class SessionService:
         texts = raw_texts or ([content] if content and session["stage"] == "intake" else None)
         if texts:
             self.db.table("sessions").update(
-                {"status": "active"}
+                {"status": "active", "intake_summary": {"raw_texts": texts}}
             ).eq("id", str(session_id)).execute()
 
             start_pipeline_background(
@@ -157,6 +158,94 @@ class SessionService:
     async def delete_session(self, session_id: UUID) -> None:
         """Permanently delete a session and all its data."""
         self.db.table("sessions").delete().eq("id", str(session_id)).execute()
+
+    async def retry_session(self, session_id: UUID, user_id: UUID) -> dict:
+        """Re-launch pipeline for a failed or stuck session."""
+        session = await self._load_session(session_id)
+        if not session:
+            raise ValueError("Session not found")
+
+        stage = session.get("stage", "")
+        status_val = session.get("status", "")
+        is_error = stage == "error" or status_val == "error"
+        is_stuck = (
+            stage not in ("done", "error")
+            and status_val == "active"
+            and self._is_stale(session.get("created_at"), minutes=2)
+        )
+
+        if not is_error and not is_stuck:
+            raise ValueError("Session cannot be retried in its current state")
+
+        # Recover raw texts from intake_summary.raw_texts
+        raw_texts: list[str] | None = None
+        intake = session.get("intake_summary") or {}
+        if isinstance(intake, dict):
+            raw_texts = intake.get("raw_texts")
+
+        # Fallback: try feedback_items table
+        if not raw_texts:
+            items = (
+                self.db.table("feedback_items")
+                .select("raw_text")
+                .eq("session_id", str(session_id))
+                .execute()
+            )
+            if items.data:
+                raw_texts = [i["raw_text"] for i in items.data if i.get("raw_text")]
+
+        # Fallback: try unprocessed items for the project
+        if not raw_texts:
+            items = (
+                self.db.table("feedback_items")
+                .select("raw_text")
+                .eq("project_id", session["project_id"])
+                .eq("status", "raw")
+                .limit(500)
+                .execute()
+            )
+            if items.data:
+                raw_texts = [i["raw_text"] for i in items.data if i.get("raw_text")]
+
+        if not raw_texts:
+            raise ValueError("Cannot retry: original feedback data not found")
+
+        # Reset session state
+        self.db.table("sessions").update({
+            "stage": "intake",
+            "status": "active",
+            "messages": [],
+            "pattern_report": None,
+            "decision_object": None,
+            "four_q_answers": None,
+            "spec_object": None,
+            "cursor_prompt": None,
+            "task_plan": None,
+            "gate_results": {},
+            "completed_at": None,
+        }).eq("id", str(session_id)).execute()
+
+        # Re-launch pipeline
+        start_pipeline_background(
+            str(session_id), session["project_id"], str(user_id), raw_texts,
+        )
+
+        return {
+            "session_id": str(session_id),
+            "stage": "intake",
+            "status": "active",
+            "agent_message": "Retrying analysis...",
+        }
+
+    @staticmethod
+    def _is_stale(timestamp_str: str | None, minutes: int) -> bool:
+        if not timestamp_str:
+            return True
+        try:
+            created = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            return datetime.now(UTC) - created > timedelta(minutes=minutes)
+        except (ValueError, TypeError):
+            return True
 
     async def list_sessions(
         self, project_id: UUID, limit: int = 20, offset: int = 0

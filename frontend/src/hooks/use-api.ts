@@ -1,110 +1,160 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  listSessions,
+  getSession,
+  createSession,
+  sendMessage,
+  addFeedback,
+  uploadFeedbackFile,
+  deleteSession,
+  retrySession,
+} from "@/lib/api/sessions";
+import { sendChatMessage, getChatHistory } from "@/lib/api/chat";
 import type {
+  Session,
+  SessionListItem,
+  SessionCreate,
   DashboardStats,
-  PlatformSession,
   PlatformTask,
   Workflow,
   Integration,
   WorkspaceMember,
   ActivityItem,
-  ChatMessage,
-  CreatePlatformSessionRequest,
-  UpdateTaskRequest,
-  SendTasksRequest,
-  InviteMemberRequest,
-  CreateWorkflowRequest,
-  SendChatMessageRequest,
 } from "@/types/api";
 
 // ============================================
-// BASE API CLIENT
-// Replace this URL with your actual backend URL
+// SESSIONS — Connected to real backend
 // ============================================
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
-}
-
-// ============================================
-// DASHBOARD
-// ============================================
-export function useDashboardStats() {
-  return useQuery<DashboardStats>({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => apiFetch("/api/dashboard/stats"),
-    enabled: false, // TODO: enable when backend is ready
-  });
-}
-
-export function useActivityFeed() {
-  return useQuery<ActivityItem[]>({
-    queryKey: ["activity"],
-    queryFn: () => apiFetch("/api/activity"),
-    enabled: false,
-  });
-}
-
-// ============================================
-// SESSIONS
-// ============================================
-export function useSessions() {
-  return useQuery<PlatformSession[]>({
-    queryKey: ["sessions"],
-    queryFn: () => apiFetch("/api/sessions"),
-    enabled: false,
+export function useSessions(projectId: string | null) {
+  return useQuery<SessionListItem[]>({
+    queryKey: ["sessions", projectId],
+    queryFn: () => listSessions(projectId!),
+    enabled: !!projectId,
   });
 }
 
 export function useSession(id: string) {
-  return useQuery<PlatformSession>({
+  return useQuery<Session>({
     queryKey: ["session", id],
-    queryFn: () => apiFetch(`/api/sessions/${id}`),
-    enabled: false,
+    queryFn: () => getSession(id),
+    enabled: !!id,
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 2000;
+      if (data.stage === "done" || data.stage === "error") return false;
+      return 3000;
+    },
   });
 }
 
 export function useCreateSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreatePlatformSessionRequest) =>
-      apiFetch("/api/sessions", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (data: SessionCreate) => createSession(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sessions"] }),
   });
 }
 
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteSession(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sessions"] }),
+  });
+}
+
+export function useRetrySession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => retrySession(sessionId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["session", data.session_id] });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    },
+  });
+}
+
 // ============================================
-// SESSION CHAT
+// SESSION FEEDBACK — Connected to real backend
 // ============================================
+
+export function useAddFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, texts, sourceLabel }: { sessionId: string; texts: string[]; sourceLabel?: string }) =>
+      addFeedback(sessionId, texts, sourceLabel),
+    onSuccess: (_, vars) => queryClient.invalidateQueries({ queryKey: ["session", vars.sessionId] }),
+  });
+}
+
+export function useUploadFeedbackFile() {
+  return useMutation({
+    mutationFn: ({ projectId, file }: { projectId: string; file: File }) =>
+      uploadFeedbackFile(projectId, file),
+  });
+}
+
+// ============================================
+// SESSION CHAT — Connected to real backend
+// ============================================
+
 export function useSessionChat(sessionId: string) {
-  return useQuery<ChatMessage[]>({
-    queryKey: ["session-chat", sessionId],
-    queryFn: () => apiFetch(`/api/sessions/${sessionId}/chat`),
-    enabled: false,
+  return useMutation({
+    mutationFn: (content: string) => sendMessage(sessionId, content),
+  });
+}
+
+// ============================================
+// PROJECT-LEVEL CHAT — Connected to real backend
+// ============================================
+
+export function useChatHistory(projectId: string | null) {
+  return useQuery({
+    queryKey: ["chat-history", projectId],
+    queryFn: () => getChatHistory(projectId!),
+    enabled: !!projectId,
   });
 }
 
 export function useSendChatMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: SendChatMessageRequest) =>
-      apiFetch(`/api/sessions/${data.session_id}/chat`, { method: "POST", body: JSON.stringify(data) }),
-    onSuccess: (_, vars) => queryClient.invalidateQueries({ queryKey: ["session-chat", vars.session_id] }),
+    mutationFn: (data: { project_id: string; message: string; session_id?: string }) =>
+      sendChatMessage(data.project_id, data.message, data.session_id),
+    onSuccess: (_, vars) => queryClient.invalidateQueries({ queryKey: ["chat-history", vars.project_id] }),
   });
 }
 
 // ============================================
-// TASKS
+// DASHBOARD — No backend endpoint yet
+// ============================================
+export function useDashboardStats() {
+  return useQuery<DashboardStats>({
+    queryKey: ["dashboard-stats"],
+    queryFn: () => Promise.reject("No backend endpoint"),
+    enabled: false,
+  });
+}
+
+export function useActivityFeed() {
+  return useQuery<ActivityItem[]>({
+    queryKey: ["activity"],
+    queryFn: () => Promise.reject("No backend endpoint"),
+    enabled: false,
+  });
+}
+
+// ============================================
+// TASKS — No dedicated backend endpoint yet
+// Tasks live inside session.task_plan / spec_object
 // ============================================
 export function useTasks(filters?: { status?: string; priority?: string; assignee?: string }) {
   return useQuery<PlatformTask[]>({
     queryKey: ["tasks", filters],
-    queryFn: () => apiFetch(`/api/tasks?${new URLSearchParams(filters as Record<string, string>)}`),
+    queryFn: () => Promise.reject("No backend endpoint"),
     enabled: false,
   });
 }
@@ -112,8 +162,7 @@ export function useTasks(filters?: { status?: string; priority?: string; assigne
 export function useUpdateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: UpdateTaskRequest & { id: string }) =>
-      apiFetch(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    mutationFn: (_data: { id: string }) => Promise.reject("No backend endpoint") as Promise<void>,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
 }
@@ -121,19 +170,19 @@ export function useUpdateTask() {
 export function useSendTasks() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: SendTasksRequest) =>
-      apiFetch("/api/tasks/send", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (_data: { task_ids: string[]; destination: string }) =>
+      Promise.reject("No backend endpoint") as Promise<void>,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
 }
 
 // ============================================
-// WORKFLOWS
+// WORKFLOWS — No backend endpoint yet
 // ============================================
 export function useWorkflows() {
   return useQuery<Workflow[]>({
     queryKey: ["workflows"],
-    queryFn: () => apiFetch("/api/workflows"),
+    queryFn: () => Promise.reject("No backend endpoint"),
     enabled: false,
   });
 }
@@ -141,7 +190,7 @@ export function useWorkflows() {
 export function useWorkflow(id: string) {
   return useQuery<Workflow>({
     queryKey: ["workflow", id],
-    queryFn: () => apiFetch(`/api/workflows/${id}`),
+    queryFn: () => Promise.reject("No backend endpoint"),
     enabled: false,
   });
 }
@@ -149,19 +198,20 @@ export function useWorkflow(id: string) {
 export function useCreateWorkflow() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateWorkflowRequest) =>
-      apiFetch("/api/workflows", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (_data: unknown) => Promise.reject("No backend endpoint") as Promise<void>,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workflows"] }),
   });
 }
 
 // ============================================
-// INTEGRATIONS
+// INTEGRATIONS — No backend endpoint yet
+// (Real endpoints exist at /api/v1/integrations
+// but need project_id and different shapes)
 // ============================================
 export function useIntegrations() {
   return useQuery<Integration[]>({
     queryKey: ["integrations"],
-    queryFn: () => apiFetch("/api/integrations"),
+    queryFn: () => Promise.reject("No backend endpoint"),
     enabled: false,
   });
 }
@@ -169,8 +219,7 @@ export function useIntegrations() {
 export function useConnectIntegration() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (type: string) =>
-      apiFetch("/api/integrations/connect", { method: "POST", body: JSON.stringify({ type }) }),
+    mutationFn: (_type: string) => Promise.reject("No backend endpoint") as Promise<void>,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integrations"] }),
   });
 }
@@ -178,19 +227,18 @@ export function useConnectIntegration() {
 export function useSyncIntegration() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/integrations/${id}/sync`, { method: "POST" }),
+    mutationFn: (_id: string) => Promise.reject("No backend endpoint") as Promise<void>,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integrations"] }),
   });
 }
 
 // ============================================
-// TEAM
+// TEAM — No backend endpoint yet
 // ============================================
 export function useTeamMembers() {
   return useQuery<WorkspaceMember[]>({
     queryKey: ["team"],
-    queryFn: () => apiFetch("/api/team"),
+    queryFn: () => Promise.reject("No backend endpoint"),
     enabled: false,
   });
 }
@@ -198,23 +246,7 @@ export function useTeamMembers() {
 export function useInviteMember() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: InviteMemberRequest) =>
-      apiFetch("/api/team/invite", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (_data: unknown) => Promise.reject("No backend endpoint") as Promise<void>,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team"] }),
-  });
-}
-
-// ============================================
-// FILE UPLOAD
-// ============================================
-export function useUploadFile() {
-  return useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData });
-      if (!res.ok) throw new Error(`Upload error: ${res.status}`);
-      return res.json();
-    },
   });
 }

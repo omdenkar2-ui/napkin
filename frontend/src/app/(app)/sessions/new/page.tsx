@@ -18,6 +18,8 @@ import {
 import { SourceSelectCard, type SourceOption } from "@/components/sessions/source-select-card";
 import { FileDropZone, type UploadedFile } from "@/components/sessions/file-drop-zone";
 import { cn } from "@/lib/utils";
+import { useProject } from "@/providers/project-provider";
+import { createSession, parseFile } from "@/lib/api/sessions";
 
 const SOURCES: SourceOption[] = [
   { id: "slack", name: "Slack", icon: Hash, iconBg: "bg-[#E8D5F5]", iconColor: "text-[#611F69]", itemCount: "1,247 items", enabled: true },
@@ -30,18 +32,20 @@ const SOURCES: SourceOption[] = [
 
 export default function NewSessionPage() {
   const router = useRouter();
+  const { projectId } = useProject();
   const [sessionName, setSessionName] = useState("");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [chatExpanded, setChatExpanded] = useState(false);
   const [chatText, setChatText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [options, setOptions] = useState({
     identify_patterns: true,
     analyze_sentiment: true,
     auto_generate_tasks: false,
   });
 
-  const canStart = selectedSources.length > 0 || uploadedFiles.length > 0 || chatText.trim().length > 0;
+  const canStart = (selectedSources.length > 0 || uploadedFiles.length > 0 || chatText.trim().length > 0) && !isSubmitting;
 
   const toggleSource = useCallback((id: string) => {
     setSelectedSources((prev) =>
@@ -61,20 +65,67 @@ export default function NewSessionPage() {
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  function handleStart() {
-    console.log("Start session:", { sessionName, selectedSources, uploadedFiles, chatText, options });
-    toast.success("Session started — analyzing your data...");
-    router.push("/sessions");
+  async function handleStart() {
+    if (!projectId) {
+      toast.error("No project loaded. Please refresh the page.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Parse pasted text into individual lines
+      const pastedTexts = chatText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      // 2. Parse uploaded files on the backend — extract feedback text
+      const fileTexts: string[] = [];
+      for (const uf of uploadedFiles) {
+        if (uf.file) {
+          try {
+            const parsed = await parseFile(uf.file);
+            fileTexts.push(...parsed.texts);
+          } catch {
+            toast.error(`Failed to parse ${uf.name}`);
+          }
+        }
+      }
+
+      // 3. Combine everything
+      const allTexts = [...pastedTexts, ...fileTexts];
+
+      if (allTexts.length === 0) {
+        toast.error("No feedback found. Paste text or upload a file with feedback data.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 4. Create session with ALL feedback — pipeline starts immediately
+      const result = await createSession({
+        project_id: projectId,
+        title: sessionName || undefined,
+        initial_feedback: { texts: allTexts },
+      });
+
+      toast.success(`Session started — analyzing ${allTexts.length} feedback items...`);
+      router.push(`/sessions/${result.session_id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create session");
+      setIsSubmitting(false);
+    }
   }
 
   // Build summary text
   const sourceCount = selectedSources.length;
   const fileCount = uploadedFiles.length;
   let summaryText = "No data selected yet";
-  if (sourceCount > 0 || fileCount > 0) {
+  if (sourceCount > 0 || fileCount > 0 || chatText.trim().length > 0) {
     const parts: string[] = [];
     if (sourceCount > 0) parts.push(`${sourceCount} source${sourceCount !== 1 ? "s" : ""} selected`);
     if (fileCount > 0) parts.push(`${fileCount} file${fileCount !== 1 ? "s" : ""} uploaded`);
+    if (chatText.trim().length > 0) parts.push("text feedback added");
     summaryText = parts.join(" \u00b7 ");
   }
 
@@ -236,7 +287,7 @@ export default function NewSessionPage() {
               )}
             >
               <Sparkles className="w-4 h-4" />
-              Start Analysis
+              {isSubmitting ? "Starting..." : "Start Analysis"}
             </button>
           </div>
         </div>

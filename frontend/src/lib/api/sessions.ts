@@ -106,8 +106,18 @@ export async function uploadFeedbackFile(
   return api.upload("/feedback/upload", file, { project_id: projectId });
 }
 
+export async function parseFile(file: File): Promise<{ texts: string[] }> {
+  return api.upload<{ texts: string[] }>("/feedback/parse-file", file);
+}
+
 export async function deleteSession(id: string): Promise<void> {
   await api.delete(`/sessions/${id}`);
+}
+
+export async function retrySession(
+  sessionId: string,
+): Promise<{ session_id: string; stage: string; status: string; agent_message: string }> {
+  return api.post(`/sessions/${sessionId}/retry`);
 }
 
 export async function pasteFeedback(
