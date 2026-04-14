@@ -18,7 +18,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import get_settings
-from app.core.llm import get_fast_llm
+from app.core.llm import cached_system, get_fast_llm
 from app.db.client import get_supabase_admin
 
 logger = structlog.get_logger(__name__)
@@ -207,7 +207,7 @@ async def _classify_email(subject: str, body: str) -> dict:
 
     try:
         response = await llm.ainvoke([
-            SystemMessage(content=CLASSIFICATION_SYSTEM),
+            cached_system(CLASSIFICATION_SYSTEM),
             HumanMessage(content=f"Subject: {subject}\n\nBody:\n{truncated_body}"),
         ])
         import json

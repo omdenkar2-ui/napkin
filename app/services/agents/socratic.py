@@ -10,7 +10,7 @@ import json
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_strong_llm
+from app.core.llm import get_strong_llm, cached_system
 from app.models.llm_outputs import StrategicContext
 
 logger = structlog.get_logger(__name__)
@@ -28,7 +28,7 @@ async def infer_strategic_context(pattern_report: dict, priorities: dict) -> dic
 
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content="""You are a product strategist. Based on customer feedback analysis,
+            cached_system("""You are a product strategist. Based on customer feedback analysis,
 infer the strategic context that a development team needs to build the right thing.
 
 Answer these 4 questions using ONLY evidence from the data:

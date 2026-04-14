@@ -58,7 +58,15 @@ async def run_pipeline(
         _update(db, session_id, stage="intake", status="active")
         from app.services.agents.intake import extract_signals
         signals = await extract_signals(raw_texts)
-        _save(db, session_id, intake_summary={"items": signals})
+        # Preserve raw_texts (stored at session creation) while adding extracted signals
+        existing_intake = (
+            db.table("sessions").select("intake_summary").eq("id", session_id).single().execute()
+        ).data or {}
+        prev_intake = existing_intake.get("intake_summary") or {}
+        _save(db, session_id, intake_summary={
+            **prev_intake,
+            "items": signals,
+        })
 
         if not signals:
             _update(db, session_id, stage="done", status="completed",

@@ -15,7 +15,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import get_settings
 from app.db.client import get_supabase_admin
-from app.core.llm import get_fast_llm
+from app.core.llm import cached_system, get_fast_llm
 
 logger = structlog.get_logger(__name__)
 
@@ -152,7 +152,7 @@ async def generate_github_issue(
     }, indent=2, default=str)
 
     response = await llm.ainvoke([
-        SystemMessage(content="""You are a senior engineer writing a GitHub issue from product feedback analysis.
+        cached_system("""You are a senior engineer writing a GitHub issue from product feedback analysis.
 Output ONLY valid JSON (no markdown fences):
 {
   "title": "Short, actionable issue title (under 80 chars)",
@@ -194,7 +194,7 @@ async def generate_prd_snippet(pattern: dict, spec: dict) -> dict:
     }, indent=2, default=str)
 
     response = await llm.ainvoke([
-        SystemMessage(content="""You are a product manager writing a mini-PRD (Product Requirements Document) section.
+        cached_system("""You are a product manager writing a mini-PRD (Product Requirements Document) section.
 Output ONLY valid JSON (no markdown fences):
 {
   "title": "Feature/initiative name",
@@ -245,7 +245,7 @@ async def generate_slack_message(
     )
 
     response = await llm.ainvoke([
-        SystemMessage(content="""You are writing a Slack message to update stakeholders on customer feedback findings.
+        cached_system("""You are writing a Slack message to update stakeholders on customer feedback findings.
 Output ONLY valid JSON (no markdown fences):
 {
   "text": "Plain-text summary (used as fallback / notification text)",
@@ -291,7 +291,7 @@ async def generate_sprint_ticket(task: dict, pattern: dict) -> dict:
     }, indent=2, default=str)
 
     response = await llm.ainvoke([
-        SystemMessage(content="""You are a scrum master creating a sprint ticket from feedback analysis.
+        cached_system("""You are a scrum master creating a sprint ticket from feedback analysis.
 Output ONLY valid JSON (no markdown fences):
 {
   "title": "Short, specific ticket title",

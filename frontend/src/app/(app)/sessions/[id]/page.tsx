@@ -25,7 +25,7 @@ import { AnalysisDetailSkeleton } from "@/components/analysis/analysis-detail-sk
 import { SessionChat } from "@/components/sessions/session-chat";
 import { PageTransition } from "@/components/ui/page-transition";
 import { cn } from "@/lib/utils";
-import { useSession, useRetrySession } from "@/hooks/use-api";
+import { useSession, useRetrySession, useDeleteSession } from "@/hooks/use-api";
 import { sessionToEvidence } from "@/lib/api/adapters";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -423,6 +423,7 @@ export default function SessionDetailPage() {
   const router = useRouter();
   const { data: session, isLoading } = useSession(params.id);
   const retryMutation = useRetrySession();
+  const deleteMutation = useDeleteSession();
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   const [activeRightPanel, setActiveRightPanel] = useState<RightPanel>("evidence");
   const [staleMinutes, setStaleMinutes] = useState(0);
@@ -557,6 +558,60 @@ export default function SessionDetailPage() {
               <button type="button" onClick={() => router.push("/sessions/new")}
                 className="text-[13px] text-[#1B6B7A] hover:underline">
                 Start new session
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* Done but no data — empty result */
+  const hasResults = clusters.length > 0
+    || (patternReport.critical_issues as unknown[] | undefined)?.length
+    || (patternReport.valuable_insights as unknown[] | undefined)?.length
+    || (patternReport.future_opportunities as unknown[] | undefined)?.length;
+
+  if (session?.stage === "done" && !hasResults) {
+    // Check for error message from the pipeline
+    const lastMsg = (session.messages as Array<{content?: string; role?: string}> | undefined)
+      ?.filter((m) => m.role === "assistant")
+      ?.at(-1)?.content;
+
+    return (
+      <div className="flex flex-col h-[calc(100vh-0px)]">
+        <div className="h-14 border-b border-[#E5E2DC] flex items-center gap-3 px-8 shrink-0 bg-[--background]">
+          <button type="button" onClick={() => router.push("/sessions")}
+            className="w-8 h-8 flex items-center justify-center rounded-md text-[--text-muted] hover:bg-[--surface-hover] transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <h1 className="text-[20px] font-semibold tracking-[-0.01em] text-[--text-primary]">
+            {session.title ?? "Session"}
+          </h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-[400px] px-4">
+            <div className="w-12 h-12 rounded-full bg-[--surface-alt] flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-6 h-6 text-[--text-muted]" />
+            </div>
+            <p className="text-[16px] font-medium text-[--text-primary]">No patterns found</p>
+            <p className="text-[14px] text-[--text-secondary] mt-2 leading-relaxed">
+              {lastMsg || "The analysis completed but no feedback patterns were detected. This usually happens when the feedback text wasn't included in the session."}
+            </p>
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => router.push("/sessions/new")}
+                className="px-4 py-2 bg-[#1B6B7A] text-white text-[13px] font-medium rounded-lg hover:bg-[#155A67] transition-colors"
+              >
+                Start New Session
+              </button>
+              <button
+                type="button"
+                onClick={() => { deleteMutation.mutate(params.id, { onSuccess: () => router.push("/sessions") }); }}
+                className="text-[13px] text-[--text-muted] hover:text-red-600 transition-colors"
+              >
+                Delete this session
               </button>
             </div>
           </div>

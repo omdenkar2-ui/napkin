@@ -47,7 +47,7 @@ def _verify_session_access(db, session_id: UUID, user: dict) -> dict:
         db.table("sessions")
         .select("*, projects!inner(org_id)")
         .eq("id", str(session_id))
-        .single()
+        .maybe_single()
         .execute()
     )
     if not result.data:

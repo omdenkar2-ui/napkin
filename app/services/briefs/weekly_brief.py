@@ -19,7 +19,7 @@ from uuid import uuid4
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_strong_llm
+from app.core.llm import cached_system, get_strong_llm
 from app.db.client import get_supabase_admin
 
 logger = structlog.get_logger(__name__)
@@ -181,7 +181,7 @@ async def generate_weekly_brief(project_id: str) -> dict:
 
     try:
         response = await llm.ainvoke([
-            SystemMessage(content=WEEKLY_BRIEF_SYSTEM),
+            cached_system(WEEKLY_BRIEF_SYSTEM),
             HumanMessage(content=f"Compile the weekly brief:\n\n{json.dumps(context, indent=2, default=str)}"),
         ])
 

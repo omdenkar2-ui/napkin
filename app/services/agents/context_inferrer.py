@@ -14,7 +14,7 @@ import json
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_strong_llm
+from app.core.llm import get_strong_llm, cached_system
 from app.db.client import get_supabase_admin
 from app.models.llm_outputs import StrategicContext
 
@@ -120,7 +120,7 @@ async def infer_autopilot_context(
 
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content=INFERRER_SYSTEM),
+            cached_system(INFERRER_SYSTEM),
             HumanMessage(content=f"""Using all the context below, answer the 4 strategic questions.
 
 {context_block}

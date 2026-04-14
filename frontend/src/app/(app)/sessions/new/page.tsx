@@ -102,6 +102,8 @@ export default function NewSessionPage() {
         return;
       }
 
+      toast.info(`Parsed ${allTexts.length} feedback items. Starting analysis...`);
+
       // 4. Create session with ALL feedback — pipeline starts immediately
       const result = await createSession({
         project_id: projectId,

@@ -16,7 +16,7 @@ import numpy as np
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_embeddings, get_strong_llm
+from app.core.llm import get_embeddings, get_strong_llm, cached_system
 from app.models.llm_outputs import ClusterAnalysisV2, FeedbackAnalysis
 
 logger = structlog.get_logger(__name__)
@@ -97,7 +97,7 @@ async def _direct_llm_analysis(signals: list[dict], llm) -> dict:
 
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content="""You are a product strategist analyzing customer feedback.
+            cached_system("""You are a product strategist analyzing customer feedback.
 Even with limited data, EVERY piece of feedback contains actionable signal.
 
 You MUST produce output in ALL three categories:
@@ -206,7 +206,7 @@ async def _llm_cluster(signals: list[dict], llm) -> dict[int, list[dict]]:
 
     try:
         response = await llm.ainvoke([
-            SystemMessage(content="""Group these feedback signals into 3-5 thematic clusters.
+            cached_system("""Group these feedback signals into 3-5 thematic clusters.
 Output ONLY valid JSON (no markdown, no backticks):
 {"groups": [{"cluster_id": 0, "signal_indices": [0, 3, 5], "theme": "..."}, ...]}
 Every signal index must appear in exactly one group. Use 0-based indices."""),
@@ -371,13 +371,13 @@ async def _analyze_cluster(cluster_id: int, signals: list[dict], llm) -> dict:
 
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content=(
+            cached_system(
                 "Analyze this cluster of customer feedback signals. "
                 "Produce: label (3-6 word name), pain_summary (2-3 sentences), "
                 "severity_score (0-10, where 10=data loss/can't use product), "
                 "confidence (0-1), evidence_quotes (2-3 direct quotes), "
                 "affected_segments (user types), recommended_action (specific fix)."
-            )),
+            ),
             HumanMessage(content=f"Cluster {cluster_id} ({len(signals)} signals):\n{signals_text}"),
         ])
         analysis = result.model_dump() if hasattr(result, "model_dump") else result
@@ -405,7 +405,7 @@ async def _categorize_and_compile(analyses: list[dict], signals: list[dict], llm
 
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content="""You are a product strategist analyzing clustered customer feedback.
+            cached_system("""You are a product strategist analyzing clustered customer feedback.
 
 Categorize each cluster into ONE of three categories:
 

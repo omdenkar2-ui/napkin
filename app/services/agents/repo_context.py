@@ -15,6 +15,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 
+from app.core.llm import cached_system
 from app.models.llm_outputs import EntityExtractionResult, RouteExtractionResult
 from app.services.agents.react import react_loop
 
@@ -268,7 +269,7 @@ async def extract_entities(
     try:
         structured_llm = llm.with_structured_output(EntityExtractionResult)
         result = await structured_llm.ainvoke([
-            SystemMessage(content=REPO_CONTEXT_SYSTEM),
+            cached_system(REPO_CONTEXT_SYSTEM),
             HumanMessage(content=(
                 f"Extract ONLY the entities from these files. "
                 f"Output entities with: name, fields (list of {{name, type}}), "
@@ -305,7 +306,7 @@ async def extract_routes(
     try:
         structured_llm = llm.with_structured_output(RouteExtractionResult)
         result = await structured_llm.ainvoke([
-            SystemMessage(content="Extract API routes from source files."),
+            cached_system("Extract API routes from source files."),
             HumanMessage(content=(
                 "Extract API routes from these files. "
                 "Output routes with: method, path, handler, description, file_path.\n\n"

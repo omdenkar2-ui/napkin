@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.core.llm import get_strong_llm
+from app.core.llm import cached_system, get_strong_llm
 from app.db.client import get_supabase_admin
 
 logger = structlog.get_logger(__name__)
@@ -78,7 +78,7 @@ async def chat(
             "Let the PM know they should run a feedback analysis session first."
         )
 
-    messages = [SystemMessage(content=system_content)]
+    messages = [cached_system(system_content)]
     for msg in history:
         content = msg.get("content", "")
         if msg.get("role") == "user":

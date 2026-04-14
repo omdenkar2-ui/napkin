@@ -11,7 +11,7 @@ import numpy as np
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_embeddings, get_fast_llm
+from app.core.llm import get_embeddings, get_fast_llm, cached_system
 from app.models.llm_outputs import IntakeResult
 from app.services.agents.prompts import INTAKE_STRUCTURER_SYSTEM, INTAKE_STRUCTURER_USER
 
@@ -72,7 +72,7 @@ async def _extract_batch(texts: list[str]) -> list[dict]:
 
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content=INTAKE_STRUCTURER_SYSTEM),
+            cached_system(INTAKE_STRUCTURER_SYSTEM),
             HumanMessage(content=INTAKE_STRUCTURER_USER.format(feedback_texts=feedback_text)),
         ])
         return _extract_signals_list(result)

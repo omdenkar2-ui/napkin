@@ -14,7 +14,7 @@ import structlog
 from bs4 import BeautifulSoup
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_strong_llm
+from app.core.llm import cached_system, get_strong_llm
 from app.db.client import get_supabase_admin
 
 logger = structlog.get_logger(__name__)
@@ -257,7 +257,7 @@ async def _extract_business_context(pages: list[dict], source_url: str) -> dict:
         all_text = all_text[:60_000] + "\n\n[...truncated]"
 
     response = await llm.ainvoke([
-        SystemMessage(content="""You are a product analyst. Given scraped website pages,
+        cached_system("""You are a product analyst. Given scraped website pages,
 extract a structured business context. Return ONLY valid JSON (no markdown fences):
 
 {

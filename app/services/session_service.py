@@ -269,7 +269,7 @@ class SessionService:
             self.db.table("sessions")
             .select("*")
             .eq("id", str(session_id))
-            .single()
+            .maybe_single()
             .execute()
         )
         return result.data

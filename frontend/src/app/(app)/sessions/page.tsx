@@ -6,17 +6,27 @@ import { AnalysisTable } from "@/components/analysis/analysis-table";
 import { AnalysisSkeleton } from "@/components/analysis/analysis-skeleton";
 import { AnalysisEmpty } from "@/components/analysis/analysis-empty";
 import { PageTransition } from "@/components/ui/page-transition";
-import { useSessions } from "@/hooks/use-api";
+import { useSessions, useDeleteSession } from "@/hooks/use-api";
 import { useProject } from "@/providers/project-provider";
 import { sessionToAnalysisRow } from "@/lib/api/adapters";
+import { toast } from "sonner";
 
 export default function SessionsPage() {
   const router = useRouter();
   const { projectId, loading: projectLoading } = useProject();
   const { data: sessions, isLoading: sessionsLoading } = useSessions(projectId);
+  const deleteMutation = useDeleteSession();
 
   const isLoading = projectLoading || sessionsLoading;
   const rows = (sessions ?? []).map(sessionToAnalysisRow);
+
+  const handleDelete = (id: string) => {
+    if (!confirm("Delete this session? This can't be undone.")) return;
+    deleteMutation.mutate(id, {
+      onSuccess: () => toast.success("Session deleted"),
+      onError: () => toast.error("Failed to delete session"),
+    });
+  };
 
   if (isLoading) {
     return (
@@ -67,7 +77,7 @@ export default function SessionsPage() {
 
       {/* Content */}
       <PageTransition className="p-4 md:p-8">
-        <AnalysisTable analyses={rows} />
+        <AnalysisTable analyses={rows} onDelete={handleDelete} />
       </PageTransition>
     </div>
   );

@@ -277,8 +277,9 @@ async def run_spec_qa(
         try:
             from app.services.agents.prompts import SPEC_QA_SYSTEM, SPEC_QA_USER
 
+            from app.core.llm import cached_system
             react_messages = [
-                SystemMessage(content=SPEC_QA_REACT_SYSTEM),
+                cached_system(SPEC_QA_REACT_SYSTEM),
                 HumanMessage(content=(
                     f"Check this spec for edge cases, auth issues, and error handling gaps.\n\n"
                     f"Spec: {json.dumps(spec, default=str)[:8000]}"

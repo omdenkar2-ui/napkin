@@ -16,7 +16,7 @@ from uuid import uuid4
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import get_settings
-from app.core.llm import get_strong_llm
+from app.core.llm import cached_system, get_strong_llm
 from app.db.client import get_supabase_admin
 
 logger = structlog.get_logger(__name__)
@@ -497,7 +497,7 @@ async def _build_product_context(
 
     try:
         response = await llm.ainvoke([
-            SystemMessage(content="""You are a senior engineer analyzing a GitHub repository to understand the product.
+            cached_system("""You are a senior engineer analyzing a GitHub repository to understand the product.
 
 Produce a JSON summary with exactly these keys:
 

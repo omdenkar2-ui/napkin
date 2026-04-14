@@ -9,7 +9,7 @@ import json
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.llm import get_fast_llm, get_strong_llm
+from app.core.llm import get_fast_llm, get_strong_llm, cached_system
 from app.models.llm_outputs import SpecLLMOutput
 from app.services.agents.prompts import (
     CURSOR_PROMPT_COMPILER,
@@ -65,7 +65,7 @@ async def _generate_spec(llm, pattern_report, four_q, repo_context_str, repo_con
             business_ctx = "No business context available."
 
         result = await structured_llm.ainvoke([
-            SystemMessage(content=SPEC_BUILDER_SYSTEM),
+            cached_system(SPEC_BUILDER_SYSTEM),
             HumanMessage(content=SPEC_BUILDER_USER.format(
                 pattern_report=json.dumps(pattern_report, indent=2, default=str)[:6000],
                 q1=four_q.get("q1_segment_jtbd", "Not answered"),
@@ -96,7 +96,7 @@ async def _generate_cursor_prompt(llm, spec: dict, repo_context: dict) -> str:
     try:
         fast_llm = get_fast_llm()
         response = await fast_llm.ainvoke([
-            SystemMessage(content="You generate concise Cursor-ready build prompts. Keep it under 3000 words. Be specific but brief."),
+            cached_system("You generate concise Cursor-ready build prompts. Keep it under 3000 words. Be specific but brief."),
             HumanMessage(content=CURSOR_PROMPT_COMPILER.format(
                 spec_json=json.dumps(spec, indent=2, default=str)[:4000],
                 repo_context=json.dumps(repo_context, indent=2, default=str)[:1000],

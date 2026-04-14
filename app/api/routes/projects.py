@@ -165,11 +165,10 @@ async def upload_feedback_file(
     user: Annotated[dict, Depends(get_current_user)],
     file: UploadFile = File(...),  # noqa: B008
 ):
-    """Upload a file containing feedback (CSV, TXT, DOCX, PDF)."""
+    """Upload a file containing feedback (CSV, XLSX, TXT, JSON, DOCX, PDF)."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    # Enforce file size limit
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
@@ -177,80 +176,20 @@ async def upload_feedback_file(
     db = get_supabase_admin()
     _verify_project_access(db, project_id, user)
 
-    texts: list[str] = []
+    from app.services.file_parser import parse_file
+    try:
+        texts = parse_file(content, file.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
-    # Parse based on file type
-    filename = file.filename.lower()
-    if filename.endswith(".txt"):
-        texts = content.decode("utf-8", errors="ignore").split("\n\n")
-    elif filename.endswith(".csv"):
-        import csv
-        import io
-        reader = csv.DictReader(io.StringIO(content.decode("utf-8", errors="ignore")))
-        fieldnames = reader.fieldnames or []
-        # Find the best feedback column by name
-        feedback_col_names = [
-            "review", "review_body", "feedback", "text", "comment", "content",
-            "message", "body", "note", "description", "summary", "response",
-            "input", "query", "question", "answer", "raw_text",
-        ]
-        text_col = None
-        for candidate in feedback_col_names:
-            for fn in fieldnames:
-                if fn.lower().strip() == candidate:
-                    text_col = fn
-                    break
-            if text_col:
-                break
-        # Fallback: pick the column with the longest average text
-        if not text_col and fieldnames:
-            sample_rows = []
-            for _i, row in enumerate(reader):
-                sample_rows.append(row)
-                if _i >= 20:
-                    break
-            if sample_rows:
-                avg_lens = {
-                    fn: sum(len(r.get(fn, "") or "") for r in sample_rows) / len(sample_rows)
-                    for fn in fieldnames
-                }
-                text_col = max(avg_lens, key=avg_lens.get)  # type: ignore[arg-type]
-                # Re-add sampled rows
-                for row in sample_rows:
-                    val = (row.get(text_col) or "").strip()
-                    if val:
-                        texts.append(val)
-        # Read remaining rows
-        for row in reader:
-            val = (row.get(text_col) or "").strip() if text_col else " | ".join(row.values())
-            if val:
-                texts.append(val)
-    elif filename.endswith(".docx"):
-        import io
-        from docx import Document
-        doc = Document(io.BytesIO(content))
-        texts = [p.text for p in doc.paragraphs if p.text.strip()]
-    elif filename.endswith(".pdf"):
-        import io
-        from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(content))
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                texts.append(text)
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {filename}")
-
-    # Batch insert
     rows = [
         {
             "project_id": str(project_id),
-            "raw_text": text.strip(),
+            "raw_text": text,
             "status": "raw",
             "metadata": {"filename": file.filename},
         }
         for text in texts
-        if text.strip()
     ]
 
     if rows:
@@ -258,7 +197,7 @@ async def upload_feedback_file(
 
     return FeedbackUploadResponse(
         items_created=len(rows),
-        items_skipped=len(texts) - len(rows),
+        items_skipped=0,
         source_id=None,
         session_id=None,
     )
@@ -276,114 +215,13 @@ async def parse_feedback_file(
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
-    texts: list[str] = []
-    filename = file.filename.lower()
+    from app.services.file_parser import parse_file
+    try:
+        texts = parse_file(content, file.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
-    if filename.endswith(".txt") or filename.endswith(".md"):
-        texts = content.decode("utf-8", errors="ignore").split("\n\n")
-    elif filename.endswith(".csv"):
-        import csv
-        import io
-        reader = csv.DictReader(io.StringIO(content.decode("utf-8", errors="ignore")))
-        fieldnames = reader.fieldnames or []
-        feedback_col_names = [
-            "review", "review_body", "feedback", "text", "comment", "content",
-            "message", "body", "note", "description", "summary", "response",
-        ]
-        text_col = None
-        for candidate in feedback_col_names:
-            for fn in fieldnames:
-                if fn.lower().strip() == candidate:
-                    text_col = fn
-                    break
-            if text_col:
-                break
-        if not text_col and fieldnames:
-            sample_rows = []
-            for _i, row in enumerate(reader):
-                sample_rows.append(row)
-                if _i >= 20:
-                    break
-            if sample_rows:
-                avg_lens = {
-                    fn: sum(len(r.get(fn, "") or "") for r in sample_rows) / len(sample_rows)
-                    for fn in fieldnames
-                }
-                text_col = max(avg_lens, key=avg_lens.get)  # type: ignore[arg-type]
-                for row in sample_rows:
-                    val = (row.get(text_col) or "").strip()
-                    if val:
-                        texts.append(val)
-        for row in reader:
-            val = (row.get(text_col) or "").strip() if text_col else " | ".join(row.values())
-            if val:
-                texts.append(val)
-    elif filename.endswith(".tsv"):
-        import io
-        lines = content.decode("utf-8", errors="ignore").split("\n")
-        for line in lines[1:]:
-            if line.strip():
-                texts.append(" | ".join(line.split("\t")))
-    elif filename.endswith(".docx"):
-        import io
-        from docx import Document
-        doc = Document(io.BytesIO(content))
-        texts = [p.text for p in doc.paragraphs if p.text.strip()]
-    elif filename.endswith(".pdf"):
-        import io
-        from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(content))
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                texts.append(text)
-    elif filename.endswith(".json"):
-        import json
-        parsed = json.loads(content.decode("utf-8", errors="ignore"))
-        items = parsed if isinstance(parsed, list) else [parsed]
-        text_fields = [
-            "feedback_text", "feedback", "text", "content", "message",
-            "body", "comment", "review", "note", "description", "summary",
-            "response", "input", "query", "question", "answer",
-        ]
-        for item in items:
-            if isinstance(item, str):
-                texts.append(item)
-            elif isinstance(item, dict):
-                for field in text_fields:
-                    if field in item and isinstance(item[field], str) and item[field].strip():
-                        texts.append(item[field].strip())
-                        break
-                else:
-                    texts.append(json.dumps(item))
-    elif filename.endswith(".jsonl"):
-        import json
-        text_fields = [
-            "feedback_text", "feedback", "text", "content", "message",
-            "body", "comment", "review", "note", "description", "summary",
-            "response", "input", "query", "question", "answer",
-        ]
-        for line in content.decode("utf-8", errors="ignore").split("\n"):
-            if not line.strip():
-                continue
-            obj = json.loads(line)
-            if isinstance(obj, str):
-                texts.append(obj)
-            elif isinstance(obj, dict):
-                for field in text_fields:
-                    if field in obj and isinstance(obj[field], str) and obj[field].strip():
-                        texts.append(obj[field].strip())
-                        break
-                else:
-                    texts.append(json.dumps(obj))
-    else:
-        # Fallback: try to read as text
-        try:
-            texts = content.decode("utf-8").split("\n")
-        except UnicodeDecodeError:
-            raise HTTPException(status_code=400, detail=f"Unsupported file type: {filename}")
-
-    return FileParseResponse(texts=[t.strip() for t in texts if t.strip()])
+    return FileParseResponse(texts=texts)
 
 
 @feedback_router.get("", response_model=FeedbackListResponse)

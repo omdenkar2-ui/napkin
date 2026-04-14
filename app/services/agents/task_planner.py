@@ -27,6 +27,7 @@ async def run_task_planner(
     if not task_breakdown:
         return _empty_plan()
 
+    from app.core.llm import cached_system
     if llm is None:
         from app.core.llm import get_fast_llm
         llm = get_fast_llm()
@@ -35,7 +36,7 @@ async def run_task_planner(
     try:
         structured_llm = llm.with_structured_output(TaskPlannerLLMResult)
         result = await structured_llm.ainvoke([
-            SystemMessage(content=TASK_PLANNER_SYSTEM),
+            cached_system(TASK_PLANNER_SYSTEM),
             HumanMessage(content=TASK_PLANNER_USER.format(
                 task_breakdown=json.dumps(task_breakdown, default=str),
                 decision=json.dumps(spec.get("decision", {}), default=str),

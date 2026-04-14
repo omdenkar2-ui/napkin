@@ -10,6 +10,7 @@ import {
   Mail,
   Table,
   PenLine,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,9 +47,10 @@ export interface AnalysisRow {
 
 interface AnalysisTableProps {
   analyses: AnalysisRow[];
+  onDelete?: (id: string) => void;
 }
 
-export function AnalysisTable({ analyses }: AnalysisTableProps) {
+export function AnalysisTable({ analyses, onDelete }: AnalysisTableProps) {
   const router = useRouter();
 
   return (
@@ -61,6 +63,7 @@ export function AnalysisTable({ analyses }: AnalysisTableProps) {
         <span className="w-28 text-[11px] font-semibold text-[--text-muted] uppercase tracking-[0.08em]">Data Points</span>
         <span className="w-28 text-[11px] font-semibold text-[--text-muted] uppercase tracking-[0.08em]">Patterns</span>
         <span className="w-28 text-[11px] font-semibold text-[--text-muted] uppercase tracking-[0.08em]">Status</span>
+        {onDelete && <span className="w-10" />}
       </div>
 
       {/* Rows */}
@@ -105,6 +108,23 @@ export function AnalysisTable({ analyses }: AnalysisTableProps) {
               {row.status}
             </span>
           </div>
+
+          {/* Delete */}
+          {onDelete && (
+            <div className="w-10 flex justify-end">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(row.id);
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-md text-[--text-muted] hover:text-red-600 hover:bg-red-50 transition-colors"
+                aria-label={`Delete ${row.date}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

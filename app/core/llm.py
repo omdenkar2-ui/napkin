@@ -8,9 +8,24 @@ from functools import lru_cache
 from langchain_anthropic import ChatAnthropic
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from app.core.config import get_settings
+
+
+def cached_system(text: str) -> SystemMessage:
+    """Create a SystemMessage with Anthropic prompt caching enabled.
+
+    Wraps the text in a content block with cache_control so Anthropic
+    caches the system prompt across calls, reducing input token costs
+    by up to 90% for repeated prompts.
+    """
+    return SystemMessage(content=[{
+        "type": "text",
+        "text": text,
+        "cache_control": {"type": "ephemeral"},
+    }])
 
 
 @lru_cache

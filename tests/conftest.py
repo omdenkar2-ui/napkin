@@ -55,6 +55,7 @@ def make_mock_supabase_db(
             chain.select.return_value = chain
             chain.eq.return_value = chain
             chain.single.return_value = chain
+            chain.maybe_single.return_value = chain
             result = MagicMock()
             result.data = session_data
             chain.execute.return_value = result

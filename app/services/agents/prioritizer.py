@@ -35,11 +35,13 @@ async def run_prioritizer(
         from app.core.llm import get_fast_llm
         llm = get_fast_llm()
 
+    from app.core.llm import cached_system
+
     # Single LLM call for opportunity generation (Haiku — structured output task)
     try:
         structured_llm = llm.with_structured_output(OpportunityLLMResult)
         result = await structured_llm.ainvoke([
-            SystemMessage(content=PRIORITIZER_SYSTEM),
+            cached_system(PRIORITIZER_SYSTEM),
             HumanMessage(content=PRIORITIZER_USER.format(
                 clusters=json.dumps(clusters, default=str),
                 top_pains=json.dumps(top_pains),

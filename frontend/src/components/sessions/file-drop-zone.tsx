@@ -94,13 +94,13 @@ export function FileDropZone({ files, onFilesAdd, onFileRemove }: FileDropZonePr
           Browse files
         </button>
         <p className="text-[11px] text-[#999999] mt-3">
-          CSV, XLSX, PDF, TXT, JSON — max 50MB
+          CSV, XLSX, PDF, TXT, JSON, JSONL, TSV, DOCX — max 10MB
         </p>
         <input
           ref={inputRef}
           type="file"
           multiple
-          accept=".csv,.xlsx,.pdf,.txt,.json"
+          accept=".csv,.xlsx,.xls,.pdf,.txt,.json,.jsonl,.tsv,.md,.docx"
           onChange={handleInputChange}
           className="hidden"
         />
