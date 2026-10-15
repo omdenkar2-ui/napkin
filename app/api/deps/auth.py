@@ -4,6 +4,7 @@ Napkin — Auth Dependencies
 Supabase JWT verification for FastAPI routes.
 """
 
+from asyncio import Lock
 from time import monotonic
 from typing import Annotated
 from uuid import UUID
@@ -22,7 +23,11 @@ security = HTTPBearer()
 # Cache the JWKS public key to avoid fetching on every request
 _jwks_cache: dict | None = None
 _jwks_cached_at = 0.0
+_jwks_last_refresh_at: float | None = None
+_jwks_refresh_failed = False
+_jwks_refresh_lock = Lock()
 _JWKS_TTL_SECONDS = 600
+_JWKS_REFRESH_COOLDOWN_SECONDS = 30
 
 
 def _get_jwks_url() -> str:
@@ -40,39 +45,68 @@ def _public_signing_key(key_data: dict) -> PyJWK:
         or "d" in key_data
     ):
         raise ValueError("Unexpected Supabase signing key")
-    return PyJWK.from_dict(key_data, algorithm="ES256")
+    try:
+        return PyJWK.from_dict(key_data, algorithm="ES256")
+    except (PyJWTError, TypeError, KeyError) as error:
+        raise ValueError("Malformed Supabase signing key") from error
+
+
+def _cached_signing_key(kid: str) -> PyJWK | None:
+    if _jwks_cache is not None:
+        for key_data in _jwks_cache["keys"]:
+            if key_data.get("kid") == kid:
+                return _public_signing_key(key_data)
+    return None
 
 
 async def _get_signing_key(token: str) -> PyJWK:
     """Fetch JWKS from Supabase and return the matching signing key."""
-    global _jwks_cache, _jwks_cached_at
+    global _jwks_cache, _jwks_cached_at, _jwks_last_refresh_at, _jwks_refresh_failed
 
     header = jwt.get_unverified_header(token)
     kid = header.get("kid")
     if header.get("alg") != "ES256" or not isinstance(kid, str) or not kid:
         raise jwt.InvalidTokenError("Unsupported signing key")
 
-    if _jwks_cache is None or monotonic() - _jwks_cached_at >= _JWKS_TTL_SECONDS:
+    # Coalesce concurrent misses. Recheck inside the lock because another request
+    # may already have refreshed the cache while this one was waiting.
+    async with _jwks_refresh_lock:
+        now = monotonic()
+        cache_fresh = _jwks_cache is not None and now - _jwks_cached_at < _JWKS_TTL_SECONDS
+        if cache_fresh:
+            key = _cached_signing_key(kid)
+            if key is not None:
+                return key
+
+        # An untrusted kid must not force one outbound request per inbound request.
+        # Also back off after issuer outages instead of amplifying failed fetches.
+        if (
+            _jwks_last_refresh_at is not None
+            and now - _jwks_last_refresh_at < _JWKS_REFRESH_COOLDOWN_SECONDS
+        ):
+            if _jwks_refresh_failed or not cache_fresh:
+                raise ValueError("Signing keys are temporarily unavailable")
+            raise jwt.InvalidTokenError("No matching signing key")
+
+        _jwks_last_refresh_at = now
+        _jwks_refresh_failed = True
         async with httpx.AsyncClient() as client:
             resp = await client.get(_get_jwks_url(), timeout=10)
         resp.raise_for_status()
-        _jwks_cache = resp.json()
+        candidate = resp.json()
+        if (
+            not isinstance(candidate, dict)
+            or not isinstance(candidate.get("keys"), list)
+            or any(not isinstance(key, dict) for key in candidate["keys"])
+        ):
+            raise ValueError("Malformed Supabase signing-key response")
+        _jwks_cache = candidate
         _jwks_cached_at = monotonic()
-
-    for key_data in _jwks_cache.get("keys", []):
-        if key_data.get("kid") == kid:
-            return _public_signing_key(key_data)
-
-    # Key not found — refresh cache once in case keys rotated
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(_get_jwks_url(), timeout=10)
-    resp.raise_for_status()
-    _jwks_cache = resp.json()
-    _jwks_cached_at = monotonic()
-
-    for key_data in _jwks_cache.get("keys", []):
-        if key_data.get("kid") == kid:
-            return _public_signing_key(key_data)
+        _jwks_last_refresh_at = _jwks_cached_at
+        _jwks_refresh_failed = False
+        key = _cached_signing_key(kid)
+        if key is not None:
+            return key
 
     raise jwt.InvalidTokenError("No matching signing key")
 

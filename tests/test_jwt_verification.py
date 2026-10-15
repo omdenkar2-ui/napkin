@@ -1,5 +1,6 @@
 """Validate issuer, audience and expiry before trusting a Supabase profile."""
 
+import asyncio
 from time import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,7 +17,16 @@ from app.api.deps.auth import _get_signing_key, _public_signing_key, get_current
 from app.core.config import get_settings
 
 
-def signed_token(**changes):
+@pytest.fixture(autouse=True)
+def isolated_jwks_cache(monkeypatch):
+    monkeypatch.setattr("app.api.deps.auth._jwks_cache", None)
+    monkeypatch.setattr("app.api.deps.auth._jwks_cached_at", 0.0)
+    monkeypatch.setattr("app.api.deps.auth._jwks_last_refresh_at", None)
+    monkeypatch.setattr("app.api.deps.auth._jwks_refresh_failed", False)
+    monkeypatch.setattr("app.api.deps.auth._jwks_refresh_lock", asyncio.Lock())
+
+
+def signed_token(*, kid="test", **changes):
     private = ec.generate_private_key(ec.SECP256R1())
     private_pem = private.private_bytes(
         serialization.Encoding.PEM,
@@ -32,7 +42,7 @@ def signed_token(**changes):
     claims.update(changes)
     claims = {k: v for k, v in claims.items() if v is not None}
     return (
-        jwt.encode(claims, private_pem, algorithm="ES256", headers={"kid": "test"}),
+        jwt.encode(claims, private_pem, algorithm="ES256", headers={"kid": kid}),
         private.public_key(),
     )
 
@@ -159,3 +169,105 @@ async def test_malformed_or_unsigned_token_never_fetches_keys_or_profile(token):
     assert error.value.status_code == 401
     client.assert_not_called()
     db.assert_not_called()
+
+
+def jwks_response(keys):
+    return httpx.Response(
+        200, json={"keys": keys},
+        request=httpx.Request("GET", "https://test.supabase.co/auth/v1/.well-known/jwks.json"),
+    )
+
+
+def public_jwk(public_key, kid):
+    data = jwt.algorithms.ECAlgorithm.to_jwk(public_key, as_dict=True)
+    return {**data, "kid": kid, "alg": "ES256", "use": "sig"}
+
+
+async def test_unknown_kids_cannot_force_refresh_until_rotation_cooldown(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr("app.api.deps.auth.monotonic", lambda: clock[0])
+    original, original_key = signed_token(kid="original")
+    rotated, rotated_key = signed_token(kid="rotated")
+    unknown, _ = signed_token(kid="random-unknown")
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get.side_effect = [
+        jwks_response([public_jwk(original_key, "original")]),
+        jwks_response([public_jwk(rotated_key, "rotated")]),
+    ]
+
+    with patch("app.api.deps.auth.httpx.AsyncClient", return_value=client):
+        await _get_signing_key(original)
+        for token in [unknown, rotated, unknown]:
+            with pytest.raises(jwt.InvalidTokenError):
+                await _get_signing_key(token)
+        # A legitimate cached key still works during the cooldown.
+        await _get_signing_key(original)
+        assert client.get.await_count == 1
+        clock[0] += 30
+        key = await _get_signing_key(rotated)
+        assert key.key_id == "rotated"
+        assert client.get.await_count == 2
+
+
+async def test_concurrent_cache_misses_share_one_refresh():
+    token, public_key = signed_token()
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def fetch(*args, **kwargs):
+        started.set()
+        await release.wait()
+        return jwks_response([public_jwk(public_key, "test")])
+
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get.side_effect = fetch
+    with patch("app.api.deps.auth.httpx.AsyncClient", return_value=client):
+        first = asyncio.create_task(_get_signing_key(token))
+        await started.wait()
+        second = asyncio.create_task(_get_signing_key(token))
+        release.set()
+        keys = await asyncio.gather(first, second)
+    assert all(key.key_id == "test" for key in keys)
+    client.get.assert_awaited_once()
+
+
+@pytest.mark.parametrize("payload", [[], {}, {"keys": None}, {"keys": [None]}])
+async def test_malformed_jwks_is_a_service_failure_with_retry_backoff(payload):
+    token, _ = signed_token()
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get.return_value = httpx.Response(
+        200, json=payload,
+        request=httpx.Request("GET", "https://test.supabase.co/auth/v1/.well-known/jwks.json"),
+    )
+    with (
+        patch("app.api.deps.auth.httpx.AsyncClient", return_value=client),
+        patch("app.api.deps.auth.get_supabase_admin") as db,
+    ):
+        for _ in range(2):
+            with pytest.raises(HTTPException) as error:
+                await get_current_user(
+                    HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+                )
+            assert error.value.status_code == 503
+    client.get.assert_awaited_once()
+    db.assert_not_called()
+
+
+async def test_expired_cached_key_refreshes_after_normal_ttl(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr("app.api.deps.auth.monotonic", lambda: clock[0])
+    token, public_key = signed_token()
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get.return_value = jwks_response([public_jwk(public_key, "test")])
+    with patch("app.api.deps.auth.httpx.AsyncClient", return_value=client):
+        await _get_signing_key(token)
+        clock[0] += 599
+        await _get_signing_key(token)
+        assert client.get.await_count == 1
+        clock[0] += 1
+        await _get_signing_key(token)
+        assert client.get.await_count == 2
