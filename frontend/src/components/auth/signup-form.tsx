@@ -12,6 +12,7 @@ export function SignupForm() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -19,9 +20,10 @@ export function SignupForm() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setMessage("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -36,7 +38,13 @@ export function SignupForm() {
       return;
     }
 
-    router.push("/");
+    if (!data.session) {
+      setMessage("Check your email to confirm your account, then sign in.");
+      setLoading(false);
+      return;
+    }
+    router.replace("/");
+    router.refresh();
   };
 
   const handleGoogleSignup = async () => {
@@ -105,6 +113,8 @@ export function SignupForm() {
             required
           />
         </div>
+
+        {message && <p role="status" className="text-sm text-text-secondary">{message}</p>}
 
         {error && (
           <p className="text-sm text-destructive">{error}</p>

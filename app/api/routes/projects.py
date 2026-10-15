@@ -169,7 +169,7 @@ async def upload_feedback_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    content = await file.read()
+    content = await file.read(MAX_UPLOAD_SIZE + 1)
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
@@ -205,13 +205,14 @@ async def upload_feedback_file(
 
 @feedback_router.post("/parse-file", response_model=FileParseResponse)
 async def parse_feedback_file(
+    user: Annotated[dict, Depends(get_current_user)],
     file: UploadFile = File(...),  # noqa: B008
 ):
     """Extract texts from a file without inserting into the database."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    content = await file.read()
+    content = await file.read(MAX_UPLOAD_SIZE + 1)
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 

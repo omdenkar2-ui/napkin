@@ -42,3 +42,8 @@ node_modules/
 
 # Claude Code
 .claude/
+
+# Generated frontend output
+.next/
+*.tsbuildinfo
+.ruff_cache/

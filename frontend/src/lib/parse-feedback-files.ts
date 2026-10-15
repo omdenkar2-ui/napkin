@@ -4,7 +4,7 @@
  * Binary formats (PDF, DOCX) are sent to the backend for extraction.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { api } from "./api/client";
 
 const BINARY_EXTENSIONS = new Set(["pdf", "docx"]);
 
@@ -13,17 +13,7 @@ function getExt(filename: string): string {
 }
 
 async function parseViaBackend(file: File): Promise<string[]> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const res = await fetch(`${API_BASE}/api/v1/feedback/parse-file`, {
-    method: "POST",
-    body: formData,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Failed to parse file");
-  }
-  const data = await res.json();
+  const data = await api.upload<{ texts: string[] }>("/feedback/parse-file", file);
   return data.texts ?? [];
 }
 

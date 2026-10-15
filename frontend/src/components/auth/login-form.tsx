@@ -31,7 +31,8 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/");
+    router.replace("/");
+    router.refresh();
   };
 
   const handleGoogleLogin = async () => {

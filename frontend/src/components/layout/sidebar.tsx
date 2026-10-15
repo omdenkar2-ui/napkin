@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore, createContext, useContext } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -47,21 +48,28 @@ export function useSidebar() {
   return useContext(SidebarContext);
 }
 
+let collapsedFallback = false;
+function readCollapsed() {
+  try { return localStorage.getItem("sidebar-collapsed") === "true"; }
+  catch { return collapsedFallback; }
+}
+function subscribeCollapsed(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("sidebar-change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("sidebar-change", callback);
+  };
+}
+
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("sidebar-collapsed");
-    if (stored === "true") setCollapsed(true);
-  }, []);
-
   const toggle = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("sidebar-collapsed", String(next));
-      return next;
-    });
+    collapsedFallback = !readCollapsed();
+    try { localStorage.setItem("sidebar-collapsed", String(collapsedFallback)); } catch {}
+    window.dispatchEvent(new Event("sidebar-change"));
   }, []);
 
   return (
@@ -122,7 +130,7 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
       {/* Logo */}
       <div className={cn("py-5 flex items-center border-b border-white/[0.06]", collapsed ? "justify-center px-2" : "px-4")}>
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo_clean_final.png" className="w-7 h-7 object-contain" alt="Napkin" />
+          <Image width={28} height={28} src="/logo_clean_final.png" className="w-7 h-7 object-contain" alt="Napkin" />
           {!collapsed && (
             <>
               <span className="text-[16px] font-semibold text-white tracking-[-0.01em]">Napkin</span>

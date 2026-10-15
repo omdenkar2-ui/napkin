@@ -6,9 +6,8 @@ FastAPI app with all routes, middleware, and lifecycle hooks.
 """
 
 import logging
-from contextlib import asynccontextmanager
-
 import time
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
@@ -47,6 +46,7 @@ def _recover_stuck_sessions():
     definitionally stuck — all asyncio tasks from the previous process are gone.
     """
     from datetime import UTC, datetime
+
     from app.db.client import get_supabase_admin
 
     db = get_supabase_admin()
@@ -113,12 +113,13 @@ async def lifespan(app: FastAPI):
     scheduler = None
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from apscheduler.triggers.interval import IntervalTrigger
         from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
+
         from app.services.workers.auto_pipeline import check_and_run_pipeline
         from app.services.workers.auto_sync import sync_all_sources
-        from app.services.workers.weekly_worker import generate_all_briefs
         from app.services.workers.github_checker import check_github_issues
+        from app.services.workers.weekly_worker import generate_all_briefs
 
         scheduler = AsyncIOScheduler()
 
@@ -172,37 +173,6 @@ async def lifespan(app: FastAPI):
     logger.info("napkin_shutting_down")
 
 
-def _setup_dev_auth_bypass(app: FastAPI):
-    """
-    DEV ONLY: Override auth dependencies to return the existing test user.
-    Remove this for production.
-    """
-    from uuid import UUID
-    from app.api.deps.auth import get_current_user, get_current_user_id
-
-    # Use the existing Supabase profile + org
-    TEST_USER_ID = "b09cd7f7-8d95-49a5-b928-54eae6c6a6c3"
-    TEST_ORG_ID = "00000000-0000-0000-0000-000000000010"
-
-    TEST_USER = {
-        "id": TEST_USER_ID,
-        "email": "omdenkar2@gmail.com",
-        "full_name": "Test User",
-        "org_id": TEST_ORG_ID,
-        "role": "owner",
-    }
-
-    async def _fake_user():
-        return TEST_USER
-
-    async def _fake_user_id():
-        return UUID(TEST_USER_ID)
-
-    app.dependency_overrides[get_current_user] = _fake_user
-    app.dependency_overrides[get_current_user_id] = _fake_user_id
-    print("[dev-auth] Auth bypass enabled — all requests use test user")
-
-
 def create_app() -> FastAPI:
     """Application factory."""
     settings = get_settings()
@@ -219,8 +189,8 @@ def create_app() -> FastAPI:
     # --- Rate Limiting ---
     try:
         from slowapi import Limiter, _rate_limit_exceeded_handler
-        from slowapi.util import get_remote_address
         from slowapi.errors import RateLimitExceeded
+        from slowapi.util import get_remote_address
 
         limiter = Limiter(key_func=get_remote_address)
         app.state.limiter = limiter
@@ -267,15 +237,15 @@ def create_app() -> FastAPI:
     )
 
     # --- Routes ---
+    from app.api.routes.actions import router as actions_router
     from app.api.routes.auth import router as auth_router
+    from app.api.routes.briefs import router as briefs_router
+    from app.api.routes.chat import router as chat_router
     from app.api.routes.health import router as health_router
+    from app.api.routes.integrations import router as integrations_router
     from app.api.routes.projects import feedback_router, projects_router
     from app.api.routes.sessions import router as sessions_router
     from app.api.routes.specs import artifacts_router, specs_router
-    from app.api.routes.integrations import router as integrations_router
-    from app.api.routes.chat import router as chat_router
-    from app.api.routes.actions import router as actions_router
-    from app.api.routes.briefs import router as briefs_router
 
     app.include_router(health_router)
     app.include_router(auth_router, prefix="/api/v1")
@@ -288,10 +258,6 @@ def create_app() -> FastAPI:
     app.include_router(chat_router, prefix="/api/v1")
     app.include_router(actions_router, prefix="/api/v1")
     app.include_router(briefs_router, prefix="/api/v1")
-
-    # DEV ONLY: bypass auth for local testing
-    if not settings.is_production:
-        _setup_dev_auth_bypass(app)
 
     return app
 

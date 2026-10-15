@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { FeedbackFilters } from "@/components/feedback/feedback-filters";
 import { FeedbackList } from "@/components/feedback/feedback-list";
 import { FeedbackDetailPanel } from "@/components/feedback/feedback-detail-panel";
-import { useAddFeedback } from "@/components/feedback/add-feedback-context";
+import { useRouter } from "next/navigation";
 import { FeedbackSkeleton } from "@/components/feedback/feedback-skeleton";
 import { FeedbackEmpty } from "@/components/feedback/feedback-empty";
 import { PageTransition } from "@/components/ui/page-transition";
@@ -159,7 +159,8 @@ const MOCK_FEEDBACK: FeedbackItem[] = [
 ];
 
 export default function FeedbackPage() {
-  const { openModal } = useAddFeedback();
+  const router = useRouter();
+  const openModal = () => router.push("/sessions/new");
   const isLoading = false; // Will be replaced with React Query loading state
   const showEmpty = false;
   const [search, setSearch] = useState("");
@@ -207,7 +208,7 @@ export default function FeedbackPage() {
       {/* Page header */}
       <div className="h-14 border-b border-[--border] flex items-center justify-between px-8 shrink-0">
         <h1 className="text-lg font-semibold tracking-[-0.01em] text-[--text-primary]">
-          Feedback
+          Feedback <span className="ml-2 text-xs font-normal text-[--text-muted]">UI preview · sample data</span>
         </h1>
         <button
           type="button"
