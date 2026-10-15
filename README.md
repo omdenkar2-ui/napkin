@@ -5,6 +5,18 @@
 
 ---
 
+## Review in two minutes
+
+**Theme:** AI and product intelligence. **Core flow:** customer feedback → analysis → a structured product spec and implementation tasks.
+
+1. Read [What It Does](#what-it-does) for the user problem, then follow [Quick Start](#quick-start) to run the project locally.
+2. Trace the workflow in [`app/services/agents/orchestrator.py`](app/services/agents/orchestrator.py), with API routes in [`app/api/routes/`](app/api/routes/).
+3. Explore the interface in [`frontend/src/app/`](frontend/src/app/) and the available checks in [`tests/`](tests/).
+
+**Demo preparation:** use sample feedback, configure the required services, and rehearse one complete feedback-to-spec flow. Local setup requires external services and API credentials; this README does not provide a hosted judge demo or a recorded walkthrough. The deeper architecture notes below may describe earlier layouts; the linked source files show the current structure.
+
+---
+
 ## What It Does
 
 Napkin transforms raw customer feedback into executable product specs. Feed it user interviews, support tickets, or any feedback text — it runs through a multi-stage AI pipeline and outputs a structured 6-section spec + a Cursor-ready prompt, ready to hand straight to an engineer.
@@ -340,3 +352,4 @@ Key tables in Supabase (PostgreSQL + pgvector):
 | `artifacts` | Exported PRDs, tickets, shareable links |
 
 Feedback items are indexed with IVFFlat for fast approximate nearest-neighbor search.
+
