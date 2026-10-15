@@ -35,7 +35,17 @@ The first audit covers production dependencies and is enforced in CI. The second
 
 At the October 2026 review, the development toolchain still included `braces` through Next.js ESLint dependencies. [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) describes stack exhaustion with deeply nested patterns and lists no patched version. This remains a known tooling limitation, not a claim that the full dependency tree is vulnerability-free. Avoid accepting arbitrary user-provided glob patterns in tooling and review upstream releases. Do not use a force-fix downgrade of Next.js or its ESLint configuration merely to clear the audit report.
 
-Backend versions are recorded in `uv.lock`; `uv sync --locked --extra dev` rejects a stale lock. The unit suite is not a Python dependency vulnerability scan. Review advisories and update both lockfiles deliberately, running the checks after changes.
+Backend versions are recorded in `uv.lock`; `uv sync --locked --extra dev` rejects a stale lock. CI separately audits the locked production dependency set with PyPA's `pip-audit`:
+
+```bash
+uv export --locked --no-dev --no-emit-project --no-hashes -o /tmp/napkin-runtime-requirements.txt
+uvx --python 3.11 --from pip-audit==2.10.1 pip-audit \
+  -r /tmp/napkin-runtime-requirements.txt --no-deps --disable-pip
+```
+
+The export fixes every package version before the audit; the audit does not resolve or install application dependencies. Development extras are excluded. The October 2026 dependency review updated affected runtime packages and removed unused LangGraph/community packages. The JWT verifier uses PyJWT with cryptography instead of python-jose and its unused signing dependencies. The updated production export returned no known vulnerabilities with no advisory exclusions on the review machine; CI checks its own Linux/Python 3.11 resolution.
+
+An advisory scan identifies known package/version issues, not all exploitable paths or undisclosed vulnerabilities. Review advisories and update both lockfiles deliberately, running the checks after changes.
 
 ## Before enabling a hosted instance
 
