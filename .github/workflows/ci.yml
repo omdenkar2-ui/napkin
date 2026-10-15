@@ -41,6 +41,10 @@ jobs:
         run: uv sync --locked --extra dev --python 3.11
       - name: Run backend tests with mocked services
         run: uv run --no-sync pytest -q
+      - name: Audit locked production dependencies
+        run: |
+          uv export --locked --no-dev --no-emit-project --no-hashes --output-file /tmp/napkin-runtime-requirements.txt
+          uvx --python 3.11 --from pip-audit==2.10.1 pip-audit --requirement /tmp/napkin-runtime-requirements.txt --no-deps --disable-pip
 
   database:
     name: Profile authorization (PostgreSQL 16)

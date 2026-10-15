@@ -14,7 +14,7 @@ This repository contains the **base/demo we iterated from**. Later, tailored cli
 - **Inspect the ML:** [`synthesis.py`](app/services/agents/synthesis.py) combines local sentence embeddings, deterministic KMeans, and structured LLM analysis. Small batches use direct analysis or LLM grouping.
 - **Check the boundaries:** failures preserve feedback for retry; unsupported categories can stay empty. [`tests/`](tests/) covers clustering, stage failures, authorization, and the surrounding services.
 
-The stack is **Python · FastAPI · LangChain · scikit-learn · Supabase · Next.js · TypeScript**. The active orchestrator is a direct asynchronous pipeline. LangGraph remains in the dependency set, but this checkout does not implement a LangGraph state machine.
+The stack is **Python · FastAPI · LangChain · scikit-learn · Supabase · Next.js · TypeScript**. The active orchestrator is a direct asynchronous pipeline; this checkout does not implement a LangGraph state machine.
 
 [Architecture and tradeoffs](docs/architecture.md) · [Security and validation scope](docs/security.md)
 
