@@ -9,9 +9,10 @@ from typing import Annotated
 from uuid import UUID
 
 import httpx
+import jwt
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JOSEError, JWTError, jwk, jwt
+from jwt import PyJWK, PyJWTError
 
 from app.core.config import get_settings
 from app.db.client import get_supabase_admin
@@ -29,14 +30,27 @@ def _get_jwks_url() -> str:
     return f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
 
 
-async def _get_signing_key(token: str) -> jwk.Key:
+def _public_signing_key(key_data: dict) -> PyJWK:
+    """Use only the expected public signing-key type from the configured issuer."""
+    if (
+        key_data.get("kty") != "EC"
+        or key_data.get("crv") != "P-256"
+        or key_data.get("alg", "ES256") != "ES256"
+        or key_data.get("use", "sig") != "sig"
+        or "d" in key_data
+    ):
+        raise ValueError("Unexpected Supabase signing key")
+    return PyJWK.from_dict(key_data, algorithm="ES256")
+
+
+async def _get_signing_key(token: str) -> PyJWK:
     """Fetch JWKS from Supabase and return the matching signing key."""
     global _jwks_cache, _jwks_cached_at
 
     header = jwt.get_unverified_header(token)
     kid = header.get("kid")
     if header.get("alg") != "ES256" or not isinstance(kid, str) or not kid:
-        raise JWTError("Unsupported signing key")
+        raise jwt.InvalidTokenError("Unsupported signing key")
 
     if _jwks_cache is None or monotonic() - _jwks_cached_at >= _JWKS_TTL_SECONDS:
         async with httpx.AsyncClient() as client:
@@ -47,7 +61,7 @@ async def _get_signing_key(token: str) -> jwk.Key:
 
     for key_data in _jwks_cache.get("keys", []):
         if key_data.get("kid") == kid:
-            return jwk.construct(key_data)
+            return _public_signing_key(key_data)
 
     # Key not found — refresh cache once in case keys rotated
     async with httpx.AsyncClient() as client:
@@ -58,9 +72,9 @@ async def _get_signing_key(token: str) -> jwk.Key:
 
     for key_data in _jwks_cache.get("keys", []):
         if key_data.get("kid") == kid:
-            return jwk.construct(key_data)
+            return _public_signing_key(key_data)
 
-    raise JWTError(f"No matching key found for kid={kid}")
+    raise jwt.InvalidTokenError("No matching signing key")
 
 
 async def get_current_user(
@@ -82,7 +96,7 @@ async def get_current_user(
             algorithms=["ES256"],
             audience="authenticated",
             issuer=f"{get_settings().supabase_url.rstrip('/')}/auth/v1",
-            options={"require_exp": True, "require_sub": True, "require_aud": True},
+            options={"require": ["exp", "sub", "aud", "iss"]},
         )
 
         user_id = payload.get("sub")
@@ -110,7 +124,7 @@ async def get_current_user(
 
         return result.data
 
-    except JOSEError as e:
+    except PyJWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
