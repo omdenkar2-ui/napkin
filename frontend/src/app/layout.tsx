@@ -1,24 +1,27 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif, Caveat } from "next/font/google";
+import localFont from "next/font/local";
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const inter = Inter({
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
+  display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
+const instrumentSerif = localFont({
+  src: "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2",
   variable: "--font-instrument-serif",
   weight: "400",
-  subsets: ["latin"],
+  display: "swap",
 });
 
-const caveat = Caveat({
+const caveat = localFont({
+  src: "../../node_modules/@fontsource-variable/caveat/files/caveat-latin-wght-normal.woff2",
   variable: "--font-caveat",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {

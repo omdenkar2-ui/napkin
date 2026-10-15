@@ -34,12 +34,21 @@ export function NapkinChat({ projectId }: NapkinChatProps) {
         { role: "user", content: message },
       ]);
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       setOptimisticMessages((prev) => [
         ...prev,
         { role: response.role, content: response.content, data_summary: response.data_summary },
       ]);
-      queryClient.invalidateQueries({ queryKey: ["chat-history", projectId] });
+      try {
+        await queryClient.fetchQuery({
+          queryKey: ["chat-history", projectId],
+          queryFn: () => getChatHistory(projectId),
+          staleTime: 0,
+        });
+        setOptimisticMessages([]);
+      } catch {
+        // Keep the delivered response visible if history refresh fails.
+      }
     },
     onError: () => {
       setOptimisticMessages((prev) => [
@@ -51,13 +60,6 @@ export function NapkinChat({ projectId }: NapkinChatProps) {
       ]);
     },
   });
-
-  // Reset optimistic messages when history reloads
-  useEffect(() => {
-    if (history.length > 0) {
-      setOptimisticMessages([]);
-    }
-  }, [history]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -192,6 +194,7 @@ export function NapkinChat({ projectId }: NapkinChatProps) {
             />
           </div>
           <button
+            aria-label="Send message"
             type="submit"
             disabled={!input.trim() || sendMutation.isPending}
             className="h-10 w-10 flex items-center justify-center rounded-xl bg-[--primary] text-[--primary-text] hover:bg-[--primary-hover] transition-colors disabled:opacity-30 disabled:pointer-events-none shrink-0"

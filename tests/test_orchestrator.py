@@ -330,3 +330,58 @@ async def test_start_pipeline_background():
         await asyncio.sleep(0.05)
 
     mock_run.assert_awaited_once_with("sess-6", "proj-1", "user-1", ["feedback"])
+
+
+@pytest.mark.asyncio
+async def test_failed_pipeline_leaves_stored_feedback_retryable():
+    """A caught stage error must not consume the feedback used by a future retry."""
+    db = _mock_supabase_admin()
+    db.table.return_value.execute.return_value.data = [
+        {"id": "fb-1", "raw_text": "Dashboard is slow"},
+    ]
+    with patch("app.db.client.get_supabase_admin", return_value=db), \
+         patch("app.services.agents.orchestrator.run_pipeline", new_callable=AsyncMock, return_value=False):
+        from app.services.agents.orchestrator import run_pipeline_from_stored_feedback
+        result = await run_pipeline_from_stored_feedback("proj-1", "sess-1")
+    assert "error" in result
+    db.table.return_value.update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_only_analyzed_feedback_is_marked_processed():
+    db = _mock_supabase_admin()
+    db.table.return_value.execute.return_value.data = [
+        {"id": "fb-1", "raw_text": "Dashboard is slow"},
+        {"id": "fb-2", "raw_text": "  "},
+        {"id": "fb-3", "raw_text": None},
+    ]
+    with patch("app.db.client.get_supabase_admin", return_value=db), \
+         patch("app.services.agents.orchestrator.run_pipeline", new_callable=AsyncMock, return_value=True) as run:
+        from app.services.agents.orchestrator import run_pipeline_from_stored_feedback
+        result = await run_pipeline_from_stored_feedback("proj-1", "sess-1")
+    assert result["processed"] == 1
+    run.assert_awaited_once_with("sess-1", "proj-1", "system", ["Dashboard is slow"])
+    db.table.return_value.in_.assert_called_once_with("id", ["fb-1"])
+
+
+@pytest.mark.asyncio
+async def test_no_supported_opportunity_stops_before_spec_generation():
+    db = _mock_supabase_admin()
+    mocks = {
+        "app.db.client.get_supabase_admin": MagicMock(return_value=db),
+        "app.services.agents.orchestrator._load_repo_context": AsyncMock(return_value=None),
+        "app.services.agents.orchestrator._load_business_context": AsyncMock(return_value=None),
+        "app.services.session_lifecycle.get_resolved_patterns": AsyncMock(return_value=[]),
+        "app.services.agents.intake.extract_signals": AsyncMock(return_value=make_signals(1)),
+        "app.services.agents.synthesis.synthesize_patterns": AsyncMock(return_value={"clusters": []}),
+        "app.services.agents.prioritizer.run_prioritizer": AsyncMock(return_value={"opportunities": []}),
+        "app.services.agents.spec_builder.build_spec": AsyncMock(),
+    }
+    cms = _start_patches(mocks)
+    try:
+        from app.services.agents.orchestrator import run_pipeline
+        completed = await run_pipeline("sess-1", "proj-1", "user-1", ["Works well"])
+    finally:
+        _stop_patches(cms)
+    assert completed is True
+    mocks["app.services.agents.spec_builder.build_spec"].assert_not_awaited()

@@ -6,14 +6,15 @@ Supabase-backed authentication endpoints.
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
-
-from app.api.deps.auth import get_current_user
-from app.db.client import get_supabase_client
+from app.api.deps.auth import get_current_user, security
+from app.db.client import get_supabase_admin, get_supabase_client
 from app.schemas.api import ProfileUpdate
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -38,7 +39,7 @@ async def signup(body: AuthCredentials):
             "user_id": result.user.id if result.user else None,
         }
     except Exception as e:
-        logger.error("signup_failed", email=body.email, error=str(e))
+        logger.error("signup_failed", error_type=type(e).__name__)
         raise HTTPException(status_code=400, detail="Signup failed") from e
 
 
@@ -47,9 +48,7 @@ async def login(body: AuthCredentials):
     """Login with email/password."""
     client = get_supabase_client()
     try:
-        result = client.auth.sign_in_with_password(
-            {"email": body.email, "password": body.password}
-        )
+        result = client.auth.sign_in_with_password({"email": body.email, "password": body.password})
         return {
             "access_token": result.session.access_token,
             "refresh_token": result.session.refresh_token,
@@ -72,7 +71,7 @@ async def login_google():
         result = client.auth.sign_in_with_oauth({"provider": "google"})
         return {"url": result.url}
     except Exception as e:
-        logger.error("oauth_login_failed", provider="google", error=str(e))
+        logger.error("oauth_login_failed", provider="google", error_type=type(e).__name__)
         raise HTTPException(status_code=400, detail="OAuth login failed") from e
 
 
@@ -92,13 +91,22 @@ async def refresh_token(body: RefreshRequest):
 
 
 @router.post("/logout")
-async def logout(user: Annotated[dict, Depends(get_current_user)]):
-    """Logout (invalidate session)."""
-    client = get_supabase_client()
+async def logout(
+    user: Annotated[dict, Depends(get_current_user)],
+    credentials: Annotated[HTTPAuthorizationCredentials, Security(security)],
+):
+    """Revoke the authenticated caller's session, leaving other sessions intact.
+
+    Supabase revokes that session's refresh tokens. Its already-issued access
+    token remains valid until expiry, so the caller must also discard its tokens.
+    """
     try:
-        client.auth.sign_out()
-    except Exception:
-        pass
+        get_supabase_admin().auth.admin.sign_out(credentials.credentials, scope="local")
+    except Exception as e:
+        logger.error("logout_failed", error_type=type(e).__name__)
+        raise HTTPException(
+            status_code=502, detail="Could not end session. Please try again."
+        ) from e
     return {"message": "Logged out"}
 
 
@@ -114,7 +122,6 @@ async def update_me(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Update current user profile."""
-    from app.db.client import get_supabase_admin
     db = get_supabase_admin()
 
     update_data = body.model_dump(exclude_none=True)

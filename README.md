@@ -1,355 +1,102 @@
-# napkin
+<p><img src="frontend/public/logo_clean_final.png" width="64" alt="Napkin logo"></p>
 
-> The intelligence layer between customer reality and code.
-> Cursor builds what you tell it to build. Napkin figures out what that should be.
+# Napkin
 
----
+**Turn scattered customer feedback into product decisions.**
 
-## Review in two minutes
+Napkin groups feedback, surfaces supported patterns, and drafts specifications and implementation tasks for a person to review. We built this public base while exploring how product teams could spend less time sorting feedback and more time deciding what to do with it.
 
-**Theme:** AI and product intelligence. **Core flow:** customer feedback → analysis → a structured product spec and implementation tasks.
+This repository contains the **base/demo we iterated from**. Later, tailored client implementations are separate. [Product landing page ↗](https://www.usenapkin.com/)
 
-1. Read [What It Does](#what-it-does) for the user problem, then follow [Quick Start](#quick-start) to run the project locally.
-2. Trace the workflow in [`app/services/agents/orchestrator.py`](app/services/agents/orchestrator.py), with API routes in [`app/api/routes/`](app/api/routes/).
-3. Explore the interface in [`frontend/src/app/`](frontend/src/app/) and the available checks in [`tests/`](tests/).
+## Start here
 
-**Demo preparation:** use sample feedback, configure the required services, and rehearse one complete feedback-to-spec flow. Local setup requires external services and API credentials; this README does not provide a hosted judge demo or a recorded walkthrough. The deeper architecture notes below may describe earlier layouts; the linked source files show the current structure.
+- **Follow the workflow:** [`orchestrator.py`](app/services/agents/orchestrator.py) coordinates intake, synthesis, prioritization, context, specs, tasks, and exports.
+- **Inspect the ML:** [`synthesis.py`](app/services/agents/synthesis.py) combines local sentence embeddings, deterministic KMeans, and structured LLM analysis. Small batches use direct analysis or LLM grouping.
+- **Check the boundaries:** failures preserve feedback for retry; unsupported categories can stay empty. [`tests/`](tests/) covers clustering, stage failures, authorization, and the surrounding services.
 
----
+The stack is **Python · FastAPI · LangChain · scikit-learn · Supabase · Next.js · TypeScript**. The active orchestrator is a direct asynchronous pipeline. LangGraph remains in the dependency set, but this checkout does not implement a LangGraph state machine.
 
-## What It Does
+[Architecture and tradeoffs](docs/architecture.md) · [Security and validation scope](docs/security.md)
 
-Napkin transforms raw customer feedback into executable product specs. Feed it user interviews, support tickets, or any feedback text — it runs through a multi-stage AI pipeline and outputs a structured 6-section spec + a Cursor-ready prompt, ready to hand straight to an engineer.
+## Run locally
 
----
-
-## Architecture
-
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                      Next.js 16 Frontend                          │
-│              Project-scoped sessions · Analysis UI                │
-├───────────────────────────────────────────────────────────────────┤
-│                       FastAPI (REST)                              │
-│   /api/v1/auth   /sessions   /projects   /feedback   /specs       │
-├───────────────────────────────────────────────────────────────────┤
-│                   LangGraph State Machine                         │
-│                                                                   │
-│  INTAKE → SYNTHESIS → PRIORITIZE → 4 QUESTIONS → REPO CONTEXT    │
-│              ↓                                                    │
-│        SPEC BUILD → SPEC QA → TASK PLAN → DONE                   │
-│                         ↑                                        │
-│                    (retry if gates fail)                          │
-├───────────────────────────────────────────────────────────────────┤
-│                   Supabase (PostgreSQL + pgvector)                │
-│   profiles · orgs · projects · feedback_items · sessions · specs  │
-└───────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Tech Stack
+Use **Python 3.11+**, [uv](https://docs.astral.sh/uv/getting-started/installation/), **Node.js 22.12+**, a Supabase project, and an Anthropic API key. The first embedding run downloads `all-MiniLM-L6-v2` from Hugging Face and runs it locally on CPU.
 
 ### Backend
-| Layer | Technology |
-|---|---|
-| API | FastAPI 0.115+ + Pydantic v2 |
-| Language | Python 3.11+ |
-| Database | Supabase (PostgreSQL + pgvector) |
-| Auth | Supabase Auth (JWT) |
-| Agent Engine | LangGraph 0.2+ + LangChain |
-| LLM | Anthropic Claude (Sonnet 4 + Haiku) |
-| Embeddings | HuggingFace all-MiniLM-L6-v2 (local, 384-dim) |
-| Background Jobs | Celery + Redis 7 |
-| Analytics | pandas + matplotlib + scikit-learn |
-| Logging | structlog + Sentry (optional) |
-
-### Frontend
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16.2 |
-| Language | TypeScript 5 + React 19 |
-| Styling | Tailwind CSS 4 |
-| State | TanStack React Query 5 |
-| Auth Client | @supabase/ssr |
-| Markdown | react-markdown 10 |
-| Toasts | sonner 2 |
-
----
-
-## Project Structure
-
-```
-napkin/
-├── app/
-│   ├── main.py                        # FastAPI app factory
-│   ├── core/
-│   │   ├── config.py                  # Pydantic Settings
-│   │   └── llm.py                     # LLM provider abstraction
-│   ├── models/
-│   │   ├── entities.py                # DB entity models
-│   │   └── agent_state.py             # LangGraph state types (NapkinState)
-│   ├── schemas/
-│   │   └── api.py                     # Request/Response DTOs
-│   ├── api/
-│   │   ├── deps/auth.py               # JWT auth dependencies
-│   │   └── routes/
-│   │       ├── auth.py
-│   │       ├── sessions.py
-│   │       ├── projects.py
-│   │       ├── specs.py
-│   │       └── health.py
-│   ├── services/
-│   │   ├── session_service.py         # Session lifecycle manager
-│   │   ├── agents/
-│   │   │   ├── prompts.py             # All LLM prompt templates
-│   │   │   ├── mvp/
-│   │   │   │   ├── orchestrator.py    # LangGraph state machine (543 lines)
-│   │   │   │   ├── intake.py          # Intake Structurer
-│   │   │   │   ├── synthesis.py       # Signal Synthesis
-│   │   │   │   ├── socratic.py        # 4 Strategic Questions
-│   │   │   │   └── spec_builder.py    # Spec + Cursor Prompt builder
-│   │   │   └── final/
-│   │   │       ├── prioritizer.py     # RICE scoring
-│   │   │       ├── spec_qa.py         # Quality gate checks
-│   │   │       ├── task_planner.py    # Sprint task breakdown
-│   │   │       ├── repo_context.py    # Codebase structure extraction
-│   │   │       └── memory_agent.py    # Decision storage
-│   │   ├── ingestion/
-│   │   │   └── service.py             # Feedback ingestion + embedding
-│   │   ├── export/
-│   │   │   └── export_service.py      # PRD + ticket exports
-│   │   └── analytics/
-│   │       └── visualizer.py          # 10 session analytics charts
-│   └── db/
-│       └── client.py                  # Supabase client
-├── frontend/
-│   ├── src/
-│   │   ├── app/                       # Next.js App Router pages
-│   │   ├── components/                # React components
-│   │   ├── providers/                 # Auth + Query providers
-│   │   └── types/                     # TypeScript types
-│   ├── package.json
-│   └── tailwind.config.ts
-├── migrations/
-│   └── 001_initial_schema.sql         # Full DB schema (pgvector, tables, indexes)
-├── tests/                             # 14 pytest test files
-├── docker-compose.yml
-├── Dockerfile
-├── pyproject.toml
-└── .env.example
-```
-
----
-
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- Supabase project (free tier works)
-- Anthropic API key
-- Redis (for background jobs)
-
-### 1. Backend
 
 ```bash
-# Copy and fill in environment variables
 cp .env.example .env
-
-# Install Python dependencies
-pip install -e ".[dev]"
-
-# Run DB migration
-# → Copy migrations/001_initial_schema.sql into Supabase SQL Editor and run
-
-# Start the API
-uvicorn app.main:app --reload --port 8000
+# Fill in your Supabase credentials, APP_SECRET_KEY and ANTHROPIC_API_KEY.
+uv sync --locked --extra dev --python 3.11
 ```
 
-### 2. Frontend
+For a **new, empty Supabase project**, run these SQL files in order in its SQL editor:
+
+```text
+001_initial_schema.sql
+002_add_agent_columns.sql
+002_embedding_384.sql
+003_addons_schema.sql
+004_session_trigger.sql
+005_session_lifecycle.sql
+006_socratic_mode.sql
+007_github_tracking.sql
+008_profile_authorization.sql
+```
+
+All files are in [`migrations/`](migrations/). Both `002` files are required. `RUN_THIS_NOW.sql` is a historical repair script, not part of this setup. The resulting feedback vectors use **384 dimensions**. Existing databases need a migration review and re-embedding plan before changing vector dimensions.
+
+Apply `008_profile_authorization.sql` before allowing real signups or public access. It restricts future profile changes; it does not audit or repair historical organization memberships.
+
+Configure Supabase Auth with an **ES256 signing key** and add `http://localhost:3000/callback` to its redirect URLs; the API verifies JWTs against the project's JWKS. Set the backend `FRONTEND_URL=http://localhost:3000` and configure a Google provider only if using Google sign-in.
+
+```bash
+uv run uvicorn app.main:app --reload --port 8000 --workers 1
+```
+
+API documentation: `http://localhost:8000/docs`. Run one API process: its scheduler runs in-process and multiple replicas would duplicate scheduled work.
+
+### Frontend
+
+In a second terminal:
 
 ```bash
 cd frontend
-npm install
+cp .env.local.example .env.local
+# Fill in the same Supabase URL and its public anon/publishable key.
+npm ci
 npm run dev
-# → http://localhost:3000
 ```
 
-### 3. Docker (all-in-one)
+Open `http://localhost:3000`, create an account, and confirm its email. A database administrator must then run [`scripts/provision_demo_workspace.sql`](scripts/provision_demo_workspace.sql) in the Supabase SQL editor. Replace `target_user_id` with the user's UUID from **Authentication → Users**, and optionally change `workspace_name`. The script creates the workspace, owner membership, and a default project; it refuses to reassign an existing member.
+
+The onboarding screens do not provision membership; self-service organizations and invitations are unfinished.
+
+Once provisioned, sign in and create a session with sample feedback. API calls use your Supabase session; service-role credentials belong only in the backend environment.
+
+## Verify changes
+
+Backend tests mock service calls and use test credentials; they do not need a live database, model download, or paid API call:
 
 ```bash
-docker-compose up
-# API → http://localhost:8000
-# Redis → localhost:6379
-# Worker → Celery background processor
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ANTHROPIC_API_KEY=test-placeholder \
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 uv run pytest -q
 ```
 
----
-
-## API Reference
-
-All routes are prefixed with `/api/v1`.
-
-### Auth
-```
-POST   /auth/signup            Create account
-POST   /auth/login             Get JWT
-POST   /auth/login/google      OAuth redirect URL
-GET    /auth/me                Current user profile
-```
-
-### Sessions (Core Loop)
-```
-POST   /sessions                          Start new session
-POST   /sessions/{id}/message             Send message (routes by pipeline stage)
-POST   /sessions/{id}/feedback            Add feedback to session
-GET    /sessions/{id}                     Get session state
-GET    /sessions/{id}/spec                Get generated spec
-GET    /sessions/{id}/cursor-prompt       Get Cursor-ready prompt
-GET    /sessions?project_id=...           List sessions for a project
-```
-
-### Projects
-```
-POST   /projects               Create project
-GET    /projects               List all projects
-GET    /projects/{id}          Get project details
-```
-
-### Feedback
-```
-POST   /feedback/paste         Paste raw feedback text
-POST   /feedback/upload        Upload feedback file
-GET    /feedback?project_id=   List feedback items
-```
-
-### Specs
-```
-GET    /specs?project_id=      List specs
-GET    /specs/{id}             Get spec
-PATCH  /specs/{id}/status      Update status
-PATCH  /specs/{id}/outcome     Record outcome
-```
-
-### Artifacts
-```
-GET    /artifacts/share/{token}   Public artifact (no auth required)
-GET    /artifacts?project_id=     List artifacts
-```
-
----
-
-## Pipeline Stages
-
-Sessions move through a 9-stage state machine. Stages pause when waiting for user input and resume from DB state.
-
-| Stage | What Happens |
-|---|---|
-| **INTAKE** | Extracts structured signals from raw feedback (pain points, feature requests, emotions, context) + generates embeddings |
-| **SYNTHESIS** | Clusters signals into themes and patterns |
-| **PRIORITIZE** | RICE scoring on discovered opportunities |
-| **4 QUESTIONS** | Asks one question at a time: Who is this for? Smallest 2-week proof? What's out of scope? What are the risks? |
-| **REPO CONTEXT** | Extracts codebase file tree and architecture snapshot |
-| **SPEC BUILD** | Generates 6-section spec + Cursor-ready prompt |
-| **SPEC QA** | Quality gate validation — retries if failing |
-| **TASK PLAN** | Breaks spec into sprint-ready tickets |
-| **DONE** | Exports PRD + tickets, marks session complete |
-
----
-
-## Quality Gates
-
-Every spec must pass all four gates before delivery. If any gate fails, the system asks clarifying questions and retries.
-
-| Gate | Check | Threshold |
-|---|---|---|
-| Evidence | Decisions backed by customer quotes | ≥1 quote |
-| Constraints | Non-goals and constraints defined | ≥1 each |
-| Ambiguity | No vague language | Score < 0.4 |
-| Completeness | All 6 spec sections present | 100% |
-
----
-
-## Agents
-
-| Agent | File | Purpose |
-|---|---|---|
-| Intake Structurer | `mvp/intake.py` | Parses raw feedback into structured signals |
-| Signal Synthesis | `mvp/synthesis.py` | Clusters signals into themes |
-| Socratic Questioner | `mvp/socratic.py` | 4-question strategic scoping |
-| Spec Builder | `mvp/spec_builder.py` | 6-section spec + Cursor prompt |
-| Prioritizer | `final/prioritizer.py` | RICE scoring for opportunities |
-| Spec QA | `final/spec_qa.py` | Evidence, ambiguity, completeness gates |
-| Task Planner | `final/task_planner.py` | Sprint task breakdown |
-| Repo Context | `final/repo_context.py` | Codebase architecture extraction |
-| Memory Agent | `final/memory_agent.py` | Stores decisions for learning loop |
-
----
-
-## Analytics
-
-`app/services/analytics/visualizer.py` generates 10 session performance charts using pandas, matplotlib, and scikit-learn — covering stage progression, completion rates, quality gate pass/fail distributions, and more.
-
----
-
-## Environment Variables
-
-See [`.env.example`](.env.example) for the full list. Key ones:
+Frontend checks, from `frontend/` with its environment configured:
 
 ```bash
-# Supabase
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_JWT_SECRET=
-
-# LLM
-ANTHROPIC_API_KEY=
-LLM_DEFAULT_MODEL=claude-sonnet-4-20250514
-LLM_TEMPERATURE=0.1
-
-# Embeddings (local)
-EMBEDDING_MODEL=all-MiniLM-L6-v2
-EMBEDDING_DIMENSIONS=384
-
-# Infrastructure
-REDIS_URL=redis://localhost:6379/0
-APP_ENV=development
+npm run lint
+npm test
+npm run typecheck
+npm run build
+npm audit --omit=dev
 ```
 
----
+Fonts are bundled locally through npm dependencies. [CI](.github/workflows/ci.yml) runs the test suites and frontend checks with placeholder configuration. It also runs [`profile_authorization.sql`](tests/sql/profile_authorization.sql) against a fresh PostgreSQL 16 service to exercise profile permissions and the authorization trigger. That disposable fixture is not a full Supabase environment; live login, the complete database policies, model quality, and external integrations still need separate end-to-end validation.
 
-## Testing & Linting
+## Current demo scope
 
-```bash
-# Run tests
-pytest
+Sessions and project chat have backend connections. Dashboard statistics/activity, the standalone tasks board, workflows, team management, and generic integration hooks remain unfinished UI paths; see [`use-api.ts`](frontend/src/hooks/use-api.ts). Tasks generated inside a session are distinct from that standalone board.
 
-# Lint
-ruff check .
-
-# Type check
-mypy app/
-```
-
----
-
-## Database Schema
-
-Key tables in Supabase (PostgreSQL + pgvector):
-
-| Table | Purpose |
-|---|---|
-| `profiles` | User accounts (extends auth.users) |
-| `organizations` | Teams/orgs with plan tiers |
-| `projects` | Products being worked on |
-| `feedback_sources` | Integration configs (Intercom, Slack, Notion, etc.) |
-| `feedback_items` | Raw signals with 1536-dim embeddings |
-| `sessions` | State machine instances with full message history |
-| `pattern_clusters` | Synthesized themes with evidence |
-| `specs` | Final 6-section deliverables |
-| `artifacts` | Exported PRDs, tickets, shareable links |
-
-Feedback items are indexed with IVFFlat for fast approximate nearest-neighbor search.
-
+Outputs are drafts for human review. RICE inputs and model confidence are estimates, not measured business outcomes. The ML in this base is embedding inference and unsupervised clustering; this repository does not claim a custom-trained or fine-tuned model.

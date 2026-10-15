@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -426,26 +426,18 @@ export default function SessionDetailPage() {
   const deleteMutation = useDeleteSession();
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   const [activeRightPanel, setActiveRightPanel] = useState<RightPanel>("evidence");
-  const [staleMinutes, setStaleMinutes] = useState(0);
-  const lastStageRef = useRef<string | null>(null);
-  const lastStageChangeRef = useRef<number>(Date.now());
+  const [stale, setStale] = useState({ stage: "", minutes: 0 });
+  const stage = session?.stage;
+  const staleMinutes = stale.stage === stage ? stale.minutes : 0;
 
-  // Track how long we've been stuck on the same stage
   useEffect(() => {
-    if (!session) return;
-    if (session.stage !== lastStageRef.current) {
-      lastStageRef.current = session.stage;
-      lastStageChangeRef.current = Date.now();
-      setStaleMinutes(0);
-    }
-    if (session.stage === "done" || session.stage === "error") return;
-
+    if (!stage || stage === "done" || stage === "error") return;
+    const startedAt = Date.now();
     const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - lastStageChangeRef.current) / 60000);
-      setStaleMinutes(elapsed);
+      setStale({ stage, minutes: Math.floor((Date.now() - startedAt) / 60000) });
     }, 30000);
     return () => clearInterval(interval);
-  }, [session]);
+  }, [stage]);
 
   const handleRetry = () => {
     retryMutation.mutate(params.id);

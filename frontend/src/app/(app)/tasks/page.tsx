@@ -9,7 +9,6 @@ import { TaskActionBar } from "@/components/tasks/task-action-bar";
 import { SendConfirmationModal } from "@/components/tasks/send-confirmation-modal";
 import { TaskSkeleton } from "@/components/tasks/task-skeleton";
 import { TaskEmpty } from "@/components/tasks/task-empty";
-import { PageTransition } from "@/components/ui/page-transition";
 
 type Priority = "p0" | "p1" | "p2" | "p3";
 type Status = "pending" | "approved" | "sent" | "discarded";

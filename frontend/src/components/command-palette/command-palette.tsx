@@ -35,7 +35,7 @@ export function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -58,15 +58,10 @@ export function CommandPalette() {
     return commands.filter((cmd) => cmd.label.toLowerCase().includes(q));
   }, [commands, search]);
 
-  // Reset highlight when search changes
-  useEffect(() => {
-    setHighlightedIndex(filtered.length > 0 ? 0 : -1);
-  }, [search, filtered.length]);
-
   const close = useCallback(() => {
     setOpen(false);
     setSearch("");
-    setHighlightedIndex(-1);
+    setHighlightedIndex(0);
   }, []);
 
   const execute = useCallback((cmd: Command) => {
@@ -166,7 +161,7 @@ export function CommandPalette() {
               ref={inputRef}
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setHighlightedIndex(0); }}
               placeholder="Type a command or search..."
               className="flex-1 mx-3 text-base bg-transparent border-none outline-none text-[--text-primary] placeholder:text-[--text-muted]"
             />

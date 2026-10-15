@@ -1,6 +1,6 @@
 """
 Napkin — Opportunity Prioritizer
-Generates 3-7 ranked opportunity candidates with RICE scoring.
+Generates up to 7 supported opportunity candidates with RICE scoring.
 Single LLM call + deterministic scoring. No ReAct.
 """
 
@@ -9,10 +9,10 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import structlog
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 
-from app.services.agents.prompts import PRIORITIZER_SYSTEM, PRIORITIZER_USER
 from app.models.llm_outputs import OpportunityLLMResult
+from app.services.agents.prompts import PRIORITIZER_SYSTEM, PRIORITIZER_USER
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +22,7 @@ async def run_prioritizer(
     repo_context: dict | None = None,
     llm: object | None = None,
 ) -> dict:
-    """Generate and RICE-score 3-7 opportunity candidates."""
+    """Generate and RICE-score supported opportunities, allowing none."""
     clusters = pattern_report.get("clusters", [])
     top_pains = pattern_report.get("top_pains", [])
     segments = pattern_report.get("segments_found", [])
@@ -33,6 +33,7 @@ async def run_prioritizer(
 
     if llm is None:
         from app.core.llm import get_fast_llm
+
         llm = get_fast_llm()
 
     from app.core.llm import cached_system
@@ -40,24 +41,32 @@ async def run_prioritizer(
     # Single LLM call for opportunity generation (Haiku — structured output task)
     try:
         structured_llm = llm.with_structured_output(OpportunityLLMResult)
-        result = await structured_llm.ainvoke([
-            cached_system(PRIORITIZER_SYSTEM),
-            HumanMessage(content=PRIORITIZER_USER.format(
-                clusters=json.dumps(clusters, default=str),
-                top_pains=json.dumps(top_pains),
-                segments=json.dumps(segments),
-                contradictions=json.dumps(contradictions, default=str),
-            )),
-        ])
+        result = await structured_llm.ainvoke(
+            [
+                cached_system(PRIORITIZER_SYSTEM),
+                HumanMessage(
+                    content=PRIORITIZER_USER.format(
+                        clusters=json.dumps(clusters, default=str),
+                        top_pains=json.dumps(top_pains),
+                        segments=json.dumps(segments),
+                        contradictions=json.dumps(contradictions, default=str),
+                    )
+                ),
+            ]
+        )
 
-        parsed = result.model_dump() if hasattr(result, "model_dump") else (result if isinstance(result, dict) else {})
-    except Exception:
+        parsed = (
+            result.model_dump()
+            if hasattr(result, "model_dump")
+            else (result if isinstance(result, dict) else {})
+        )
+    except Exception as exc:
         logger.exception("prioritizer_llm_failed")
-        return _fallback_from_clusters(clusters, top_pains, segments)
+        raise RuntimeError("Opportunity prioritization failed. Please retry.") from exc
 
     raw_opportunities = parsed.get("opportunities", [])
     if not raw_opportunities:
-        return _fallback_from_clusters(clusters, top_pains, segments)
+        return _empty_result()
 
     # Deterministic RICE scoring
     opportunities = []
@@ -68,22 +77,24 @@ async def run_prioritizer(
         effort = max(0.5, float(opp.get("effort_weeks", 1)))
         rice_score = (reach * impact * confidence) / effort
 
-        opportunities.append({
-            "id": str(uuid4())[:8],
-            "title": opp.get("title", "Untitled"),
-            "description": opp.get("description", ""),
-            "source_patterns": opp.get("source_patterns", []),
-            "segments_served": opp.get("segments_served", []),
-            "reach": reach,
-            "impact": impact,
-            "confidence": confidence,
-            "effort_weeks": effort,
-            "rice_score": round(rice_score, 2),
-            "rank": 0,
-            "risks": opp.get("risks", []),
-            "dependencies": opp.get("dependencies", []),
-            "non_goals_if_chosen": opp.get("non_goals_if_chosen", []),
-        })
+        opportunities.append(
+            {
+                "id": str(uuid4())[:8],
+                "title": opp.get("title", "Untitled"),
+                "description": opp.get("description", ""),
+                "source_patterns": opp.get("source_patterns", []),
+                "segments_served": opp.get("segments_served", []),
+                "reach": reach,
+                "impact": impact,
+                "confidence": confidence,
+                "effort_weeks": effort,
+                "rice_score": round(rice_score, 2),
+                "rank": 0,
+                "risks": opp.get("risks", []),
+                "dependencies": opp.get("dependencies", []),
+                "non_goals_if_chosen": opp.get("non_goals_if_chosen", []),
+            }
+        )
 
     opportunities.sort(key=lambda o: o["rice_score"], reverse=True)
     for i, opp in enumerate(opportunities):
@@ -92,13 +103,21 @@ async def run_prioritizer(
     recommended = opportunities[0]["id"] if opportunities else None
     reasoning = parsed.get(
         "recommendation_reasoning",
-        f"'{opportunities[0]['title']}' has the highest RICE score ({opportunities[0]['rice_score']})."
-        if opportunities else "",
+        (
+            f"'{opportunities[0]['title']}' has the highest RICE score "
+            f"({opportunities[0]['rice_score']})."
+        )
+        if opportunities
+        else "",
     )
     tradeoff = parsed.get(
         "tradeoff_summary",
-        f"Not picking '{opportunities[1]['title']}' defers {opportunities[1].get('description', 'an alternative')}."
-        if len(opportunities) > 1 else "No alternatives to compare.",
+        (
+            f"Not picking '{opportunities[1]['title']}' defers "
+            f"{opportunities[1].get('description', 'an alternative')}."
+        )
+        if len(opportunities) > 1
+        else "No alternatives to compare.",
     )
 
     logger.info("prioritization_complete", opportunities=len(opportunities), top=recommended)
@@ -117,44 +136,6 @@ def _empty_result() -> dict:
         "opportunities": [],
         "recommended": None,
         "recommendation_reasoning": "No patterns available for prioritization.",
-        "tradeoff_summary": "",
-        "generated_at": datetime.now(UTC).isoformat(),
-    }
-
-
-def _fallback_from_clusters(clusters, top_pains, segments) -> dict:
-    opportunities = []
-    for i, cluster in enumerate(clusters[:5]):
-        severity = float(cluster.get("severity", cluster.get("severity_score", 5)))
-        confidence = float(cluster.get("confidence", 0.5))
-        frequency = int(cluster.get("frequency", 1))
-        rice_score = (frequency * (severity / 3) * confidence) / 2.0
-
-        opportunities.append({
-            "id": str(uuid4())[:8],
-            "title": cluster.get("label", f"Opportunity {i + 1}"),
-            "description": cluster.get("pain_summary", ""),
-            "source_patterns": [cluster.get("label", "")],
-            "segments_served": segments[:3],
-            "reach": frequency,
-            "impact": round(severity / 3, 1),
-            "confidence": confidence,
-            "effort_weeks": 2.0,
-            "rice_score": round(rice_score, 2),
-            "rank": 0,
-            "risks": [],
-            "dependencies": [],
-            "non_goals_if_chosen": [],
-        })
-
-    opportunities.sort(key=lambda o: o["rice_score"], reverse=True)
-    for i, opp in enumerate(opportunities):
-        opp["rank"] = i + 1
-
-    return {
-        "opportunities": opportunities,
-        "recommended": opportunities[0]["id"] if opportunities else None,
-        "recommendation_reasoning": "Fallback ranking based on cluster severity and frequency.",
         "tradeoff_summary": "",
         "generated_at": datetime.now(UTC).isoformat(),
     }

@@ -116,3 +116,22 @@ async def test_empty_clusters():
 
     assert result.get("opportunities") == []
     assert result.get("recommended") is None
+
+
+@pytest.mark.asyncio
+async def test_empty_llm_output_does_not_fabricate_opportunities():
+    from app.services.agents.prioritizer import run_prioritizer
+
+    result = await run_prioritizer(make_pattern_report(), llm=make_mock_react_llm({"opportunities": []}))
+    assert result["opportunities"] == []
+    assert result["recommended"] is None
+
+
+@pytest.mark.asyncio
+async def test_provider_failure_does_not_fabricate_rice_estimates():
+    from app.services.agents.prioritizer import run_prioritizer
+
+    llm = make_mock_react_llm({})
+    llm.with_structured_output.return_value.ainvoke.side_effect = RuntimeError("provider down")
+    with pytest.raises(RuntimeError, match="prioritization failed"):
+        await run_prioritizer(make_pattern_report(), llm=llm)

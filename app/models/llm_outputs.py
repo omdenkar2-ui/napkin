@@ -213,6 +213,10 @@ class ClusterAnalysisV2(BaseModel):
 class CriticalIssue(BaseModel):
     title: str = ""
     severity: float = 5.0
+    confidence: float = Field(
+        default=0.5, ge=0.0, le=1.0,
+        description="Model-estimated support in the feedback, not a calibrated probability.",
+    )
     frequency: int = 0
     description: str = ""
     evidence: list[str] = Field(default_factory=list)

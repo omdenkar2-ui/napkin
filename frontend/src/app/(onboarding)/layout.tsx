@@ -1,3 +1,4 @@
+import Image from "next/image";
 export default function OnboardingLayout({
   children,
 }: {
@@ -7,7 +8,7 @@ export default function OnboardingLayout({
     <div className="min-h-screen bg-[--background] flex items-center justify-center relative">
       {/* Logo */}
       <div className="absolute top-6 left-6">
-        <img
+        <Image width={32} height={32}
           src="/logo_clean_final.png"
           className="w-7 h-7 object-contain"
           alt="Napkin"
