@@ -46,6 +46,8 @@ For a **new, empty Supabase project**, run these SQL files in order in its SQL e
 
 All files are in [`migrations/`](migrations/). Both `002` files are required. `RUN_THIS_NOW.sql` is a historical repair script, not part of this setup. The resulting feedback vectors use **384 dimensions**. Existing databases need a migration review and re-embedding plan before changing vector dimensions.
 
+Apply `008_profile_authorization.sql` before allowing real signups or public access. It restricts future profile changes; it does not audit or repair historical organization memberships.
+
 Configure Supabase Auth with an **ES256 signing key** and add `http://localhost:3000/callback` to its redirect URLs; the API verifies JWTs against the project's JWKS. Set the backend `FRONTEND_URL=http://localhost:3000` and configure a Google provider only if using Google sign-in.
 
 ```bash
@@ -91,7 +93,7 @@ npm run build
 npm audit --omit=dev
 ```
 
-The Next.js build downloads Google Fonts. [CI](.github/workflows/ci.yml) runs the test suites and frontend checks with placeholder configuration. These checks establish code behavior with fixtures; live login, database policies, model quality, and external integrations need separate end-to-end validation.
+Fonts are bundled locally through npm dependencies. [CI](.github/workflows/ci.yml) runs the test suites and frontend checks with placeholder configuration. It also runs [`profile_authorization.sql`](tests/sql/profile_authorization.sql) against a fresh PostgreSQL 16 service to exercise profile permissions and the authorization trigger. That disposable fixture is not a full Supabase environment; live login, the complete database policies, model quality, and external integrations still need separate end-to-end validation.
 
 ## Current demo scope
 

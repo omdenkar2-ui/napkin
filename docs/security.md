@@ -7,9 +7,11 @@ This repository is a public development base. The later private client deploymen
 - Protected API routes require a Supabase JWT in every environment. The frontend attaches the current access token, refreshes the session, and redirects unauthenticated visitors to login.
 - The API's verifier currently accepts ES256 tokens from the configured project's JWKS. Configure compatible Supabase signing keys and test actual token expiry, refresh, and logout flows before hosting.
 - The service-role key bypasses database row-level security. Keep it in backend environment variables only. API ownership/organization checks and the database's RLS policies both need review when adding endpoints.
-- Migration `008_profile_authorization.sql` restricts browser-side profile updates so users cannot assign their own organization or role. Workspace provisioning is an administrator operation in this demo; signing up does not grant organization membership.
+- Apply migration `008_profile_authorization.sql` before real signups or public access. It restricts browser-side profile updates so users cannot assign their own organization or role. It does not audit or repair historical memberships. Workspace provisioning is an administrator operation in this demo; signing up does not grant organization membership.
 - Use the public anon/publishable key in `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Never put the service-role key, Anthropic key, or OAuth client secrets in a `NEXT_PUBLIC_*` variable.
 - Keep `.env` and `.env.local` untracked. The supplied examples contain placeholders. If a real secret is ever committed, revoke it and inspect repository history; removing the current file is insufficient.
+
+The CI database job executes [`tests/sql/profile_authorization.sql`](../tests/sql/profile_authorization.sql) in a fresh PostgreSQL 16 service. It checks permitted own-profile edits, denied cross-user edits, blocked role/organization changes, and the trigger's protection if a broad update grant is restored. It also checks that the trusted service role can provision membership. This fixture uses minimal Supabase-like roles and tables; it does not replace testing the complete migrations, signup, and administrator provisioning against a controlled Supabase project. Never run that fixture against a real project.
 
 ## Feedback and generated output
 

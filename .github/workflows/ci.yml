@@ -42,6 +42,37 @@ jobs:
       - name: Run backend tests with mocked services
         run: uv run --no-sync pytest -q
 
+  database:
+    name: Profile authorization (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-only
+          POSTGRES_DB: napkin_security_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d napkin_security_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:ci-postgres-only@localhost:5432/napkin_security_test
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Exercise profile authorization in a disposable database
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/sql/profile_authorization.sql
+
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest

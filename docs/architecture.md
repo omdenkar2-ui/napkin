@@ -58,6 +58,8 @@ The model performs embedding inference; KMeans fits clusters for each batch. The
 
 ## Validation boundary
 
-Automated tests cover deterministic behavior and mocked service boundaries. They do not connect to production Supabase, Anthropic, OAuth providers, email, Slack, WhatsApp, or customer systems. Before a real deployment, validate a full authenticated flow against a fresh migrated database and test each enabled integration with a controlled account.
+The Python and frontend test suites cover deterministic behavior and mocked service boundaries. A separate [SQL fixture](../tests/sql/profile_authorization.sql) runs migration 008 against minimal roles and profile tables in a disposable PostgreSQL 16 service, exercising the permissions and trigger with real SQL execution. It does not apply the entire application schema or exercise the administrator provisioning script.
+
+These checks do not connect to production Supabase, Anthropic, OAuth providers, email, Slack, WhatsApp, or customer systems. Before a real deployment, validate a full authenticated flow against a fresh migrated database and test each enabled integration with a controlled account.
 
 The frontend's unconnected query hooks are listed in the root README. They must be completed before presenting those screens as functioning capabilities of a hosted product. Account signup creates a profile, but workspace membership needs administrator provisioning in this demo; onboarding and team screens do not implement that lifecycle.
