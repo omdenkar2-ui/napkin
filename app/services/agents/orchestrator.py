@@ -44,8 +44,8 @@ async def run_pipeline(
     project_id: str,
     user_id: str,
     raw_texts: list[str],
-) -> None:
-    """Run the full Napkin analysis pipeline. Updates DB at each stage."""
+) -> bool:
+    """Persist each stage and return whether analysis completed successfully."""
     from app.db.client import get_supabase_admin
     db = get_supabase_admin()
 
@@ -75,7 +75,7 @@ async def run_pipeline(
                         "Could not extract any feedback signals from the provided text. "
                         "Please provide customer feedback to analyze."
                     )])
-            return
+            return True
 
         # ── Stage 2: Synthesis ───────────────────────────────────
         _update(db, session_id, stage="synthesis")
@@ -106,6 +106,14 @@ async def run_pipeline(
         priorities = await run_prioritizer(pattern_report)
         _save(db, session_id, decision_object=priorities)
 
+        if not priorities.get("opportunities"):
+            _update(db, session_id, stage="done", status="completed",
+                    completed_at=_now(), messages=[_msg(
+                        "Analysis completed without a supported opportunity to build. "
+                        "Review the feedback findings before adding more evidence."
+                    )])
+            return True
+
         # ── Stage 4: Strategic Context ───────────────────────────
         # Autopilot mode: use rich context (business + repo + decision history)
         # Manual mode: use basic socratic inference (pattern report + priorities only)
@@ -135,7 +143,6 @@ async def run_pipeline(
         _update(db, session_id, stage="task_planning")
         from app.services.agents.task_planner import run_task_planner
         task_plan = await run_task_planner(spec)
-        _save(db, session_id, task_plan=task_plan)
         _save(db, session_id, task_plan=task_plan)
 
         # ── Stage 7: Export (use task_planning stage since 'export' not in DB enum)
@@ -177,11 +184,15 @@ async def run_pipeline(
             clusters=len(pattern_report.get("clusters", [])),
             tasks=len(task_plan.get("tasks", [])),
         )
+        return True
 
-    except Exception as e:
+    except Exception:
         logger.exception("pipeline_failed", session_id=session_id)
         _update(db, session_id, stage="error", status="error",
-                messages=[_msg(f"Analysis failed: {e}")])
+                messages=[_msg(
+                    "Analysis could not complete. Please retry; your feedback is retained."
+                )])
+        return False
 
 
 async def run_pipeline_from_stored_feedback(project_id: str, session_id: str) -> dict:
@@ -202,14 +213,23 @@ async def run_pipeline_from_stored_feedback(project_id: str, session_id: str) ->
     if not result.data:
         return {"error": "No new feedback to process"}
 
-    raw_texts = [item["raw_text"] for item in result.data if item.get("raw_text")]
-    item_ids = [item["id"] for item in result.data]
+    valid_items = [
+        item for item in result.data
+        if isinstance(item.get("raw_text"), str) and item["raw_text"].strip()
+    ]
+    raw_texts = [item["raw_text"] for item in valid_items]
+    item_ids = [item["id"] for item in valid_items]
 
     if not raw_texts:
         return {"error": "No valid feedback text found"}
 
     # Run the full pipeline
-    await run_pipeline(session_id, project_id, "system", raw_texts)
+    completed = await run_pipeline(session_id, project_id, "system", raw_texts)
+    if not completed:
+        return {
+            "error": "Analysis failed; feedback is retained for retry",
+            "session_id": session_id,
+        }
 
     # Mark items as processed and link to session
     db.table("feedback_items").update({

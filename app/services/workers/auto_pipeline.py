@@ -5,7 +5,6 @@ Runs every 6 hours via APScheduler. Can also be triggered immediately by webhook
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -49,12 +48,14 @@ async def check_and_run_pipeline() -> None:
                     cooldown_hours=MIN_HOURS_BETWEEN_SESSIONS,
                 )
             except Exception as exc:
-                logger.error("auto_pipeline_project_failed",
-                             project_id=project["id"], error=str(exc))
+                logger.error(
+                    "auto_pipeline_project_failed", project_id=project["id"], error=str(exc)
+                )
 
         # Auto-archive old completed sessions
         try:
             from app.services.session_lifecycle import auto_archive_old_sessions
+
             await auto_archive_old_sessions()
         except Exception as exc:
             logger.warning("auto_archive_failed", error=str(exc))
@@ -76,6 +77,7 @@ async def trigger_pipeline_now(project_id: str) -> dict:
             "webhook-triggered",
             min_items=WEBHOOK_MIN_ITEMS,
             cooldown_hours=WEBHOOK_COOLDOWN_HOURS,
+            trigger="webhook",
         )
     except Exception as exc:
         logger.error("trigger_pipeline_now_failed", project_id=project_id, error=str(exc))
@@ -88,6 +90,7 @@ async def _check_project(
     project_name: str,
     min_items: int = MIN_NEW_ITEMS,
     cooldown_hours: int = MIN_HOURS_BETWEEN_SESSIONS,
+    trigger: str = "auto",
 ) -> dict:
     """Check a single project and run pipeline if criteria met."""
 
@@ -102,8 +105,12 @@ async def _check_project(
     count = unprocessed.count if hasattr(unprocessed, "count") else len(unprocessed.data or [])
 
     if count < min_items:
-        logger.debug("auto_pipeline_skip_insufficient",
-                      project=project_name, unprocessed=count, minimum=min_items)
+        logger.debug(
+            "auto_pipeline_skip_insufficient",
+            project=project_name,
+            unprocessed=count,
+            minimum=min_items,
+        )
         return {"status": "queued", "unprocessed": count, "minimum": min_items}
 
     # 2. Check cooldown
@@ -117,8 +124,9 @@ async def _check_project(
         .execute()
     )
     if recent.data:
-        logger.debug("auto_pipeline_skip_cooldown",
-                      project=project_name, cooldown_hours=cooldown_hours)
+        logger.debug(
+            "auto_pipeline_skip_cooldown", project=project_name, cooldown_hours=cooldown_hours
+        )
         return {"status": "cooldown", "hours": cooldown_hours}
 
     # 3. Concurrency lock: skip if a pipeline is already running for this project
@@ -149,32 +157,61 @@ async def _check_project(
     session_id = str(uuid4())
     session_title = f"Auto — {datetime.now(UTC).strftime('%b %d %H:%M')}"
 
-    db.table("sessions").insert({
-        "id": session_id,
-        "project_id": project_id,
-        "created_by": created_by,
-        "title": session_title,
-        "stage": "intake",
-        "status": "active",
-        "stage_history": [{"stage": "intake", "entered_at": datetime.now(UTC).isoformat()}],
-    }).execute()
+    db.table("sessions").insert(
+        {
+            "id": session_id,
+            "project_id": project_id,
+            "created_by": created_by,
+            "title": session_title,
+            "stage": "intake",
+            "status": "active",
+            "trigger": trigger,
+            "stage_history": [{"stage": "intake", "entered_at": datetime.now(UTC).isoformat()}],
+        }
+    ).execute()
 
-    # 4. Run pipeline in background task (don't block the scheduler)
+    # 5. Await the pipeline outcome before reporting completion.
     from app.services.agents.orchestrator import run_pipeline_from_stored_feedback
 
     try:
         result = await run_pipeline_from_stored_feedback(project_id, session_id)
-        logger.info("auto_pipeline_complete",
-                     project=project_name, session_id=session_id,
-                     processed=result.get("processed", 0))
-        return {"status": "triggered", "session_id": session_id, "processed": result.get("processed", 0)}
+        if result.get("error"):
+            db.table("sessions").update(
+                {
+                    "stage": "error",
+                    "status": "error",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Analysis could not complete. Feedback is retained for retry."
+                            ),
+                        }
+                    ],
+                }
+            ).eq("id", session_id).execute()
+            return {"status": "error", "session_id": session_id, "error": result["error"]}
+        logger.info(
+            "auto_pipeline_complete",
+            project=project_name,
+            session_id=session_id,
+            processed=result.get("processed", 0),
+        )
+        return {
+            "status": "triggered",
+            "session_id": session_id,
+            "processed": result.get("processed", 0),
+        }
 
     except Exception as exc:
-        logger.error("auto_pipeline_run_failed",
-                      project=project_name, session_id=session_id, error=str(exc))
-        db.table("sessions").update({
-            "stage": "error",
-            "status": "error",
-            "messages": [{"role": "system", "content": f"Auto-pipeline failed: {exc}"}],
-        }).eq("id", session_id).execute()
+        logger.error(
+            "auto_pipeline_run_failed", project=project_name, session_id=session_id, error=str(exc)
+        )
+        db.table("sessions").update(
+            {
+                "stage": "error",
+                "status": "error",
+                "messages": [{"role": "system", "content": f"Auto-pipeline failed: {exc}"}],
+            }
+        ).eq("id", session_id).execute()
         return {"status": "error", "error": str(exc)}
