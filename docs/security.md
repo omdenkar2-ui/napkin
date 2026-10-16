@@ -21,6 +21,15 @@ Analysis failures now preserve feedback for retry instead of creating random emb
 
 Use synthetic or permissioned data while testing. Review retention, access, provider data handling, logging, and webhook authentication before connecting private business information.
 
+## Generated Next.js key material
+
+Next.js build output must never be tracked. CI rejects generated artifacts even if
+they were force-added despite `.gitignore`. An explicit fresh-key build workflow
+refuses fixed key overrides and checks for reuse of inspected prior material,
+without publishing historical keys or their fingerprints. These checks do not
+establish which keys a hosted deployment uses. See the
+[exposure response and deployment verification procedure](next-key-exposure.md).
+
 ## Dependency checks
 
 From `frontend/`:
