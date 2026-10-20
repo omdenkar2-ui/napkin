@@ -17,23 +17,21 @@
 
 ## Codebase Structure
 
-```
-├── app/                    # Next.js App Router
-│   ├── api/                # API routes (BACKEND — ignore design system)
-│   ├── (auth)/             # Auth pages (login, signup, onboarding)
-│   ├── (dashboard)/        # Main app pages (FRONTEND — follow design system)
-│   └── layout.tsx          # Root layout
-├── components/             # Shared UI components (FRONTEND)
-│   ├── ui/                 # Base components (Button, Input, Card, etc.)
-│   └── [feature]/          # Feature-specific components
-├── lib/                    # Utilities
-│   ├── supabase/           # Supabase client, auth helpers (BACKEND)
-│   ├── api/                # API client functions (BACKEND)
-│   └── utils/              # Shared utilities
-├── .claude/
-│   └── design-system-platform.md   # UI source of truth
-├── public/                 # Static assets
-└── tailwind.config.ts      # Tailwind configuration
+```text
+app/                       # Python FastAPI backend
+  api/routes/              # Authenticated HTTP endpoints
+  services/agents/         # Analysis pipeline and agent implementations
+  services/workers/        # APScheduler jobs
+  models/                  # Domain and structured model outputs
+frontend/
+  src/app/                 # Next.js App Router
+  src/components/          # Feature components and UI primitives
+  src/lib/api/             # Authenticated backend client
+  src/providers/           # Auth, project and query context
+  public/                  # App assets
+tests/                     # Backend tests and SQL authorization fixture
+migrations/                # Ordered database migrations
+docs/                      # Architecture and security boundaries
 ```
 
 ---
@@ -251,3 +249,24 @@ npx eslint .
 # Dev server works
 npm run dev
 ```
+
+
+## Skill routing
+
+When the user's request matches an available skill, invoke it via the Skill tool.
+When in doubt, invoke the skill.
+
+Key routing rules:
+- Product ideas/brainstorming → invoke /office-hours
+- Strategy/scope → invoke /plan-ceo-review
+- Architecture → invoke /plan-eng-review
+- Design system/plan review → invoke /design-consultation or /plan-design-review
+- Full review pipeline → invoke /autoplan
+- Bugs/errors → invoke /investigate
+- QA/testing site behavior → invoke /qa or /qa-only
+- Code review/diff check → invoke /review
+- Visual polish → invoke /design-review
+- Ship/deploy/PR → invoke /ship or /land-and-deploy
+- Save progress → invoke /context-save
+- Resume context → invoke /context-restore
+- Author a backlog-ready spec/issue → invoke /spec
