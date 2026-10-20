@@ -51,9 +51,6 @@ class Settings(BaseSettings):
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_dimensions: int = 384
 
-    # --- Redis ---
-    redis_url: str = "redis://localhost:6379/0"
-
     # --- GitHub ---
     github_app_id: str = ""
     github_app_private_key: str = ""

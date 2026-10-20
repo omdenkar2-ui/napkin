@@ -11,6 +11,7 @@ This repository contains the **base/demo we iterated from**. Later, tailored cli
 ## Start here
 
 - **Follow the workflow:** [`orchestrator.py`](app/services/agents/orchestrator.py) coordinates intake, synthesis, prioritization, context, specs, tasks, and exports.
+- **Follow the boundaries:** [`pipeline_store.py`](app/services/agents/pipeline_store.py) handles session writes; [`pipeline_context.py`](app/services/agents/pipeline_context.py) prepares enrichment and export inputs without changing original feedback.
 - **Inspect the ML:** [`synthesis.py`](app/services/agents/synthesis.py) combines local sentence embeddings, deterministic KMeans, and structured LLM analysis. Small batches use direct analysis or LLM grouping.
 - **Check the boundaries:** failures preserve feedback for retry; unsupported categories can stay empty. [`tests/`](tests/) covers clustering, stage failures, authorization, and the surrounding services.
 
@@ -55,6 +56,10 @@ uv run uvicorn app.main:app --reload --port 8000 --workers 1
 ```
 
 API documentation: `http://localhost:8000/docs`. Run one API process: its scheduler runs in-process and multiple replicas would duplicate scheduled work.
+
+The Docker image installs from `uv.lock` with the same locked dependencies as
+local development and CI. APScheduler runs the scheduled jobs; no Celery worker
+or Redis service is required.
 
 ### Frontend
 

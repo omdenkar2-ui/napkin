@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -51,6 +52,70 @@ def _stop_patches(cms: list) -> None:
     """Stop a list of patch context managers."""
     for cm in cms:
         cm.stop()
+
+
+@pytest.mark.asyncio
+async def test_resolved_context_preserves_original_saved_and_exported_evidence():
+    """Resolved history is synthesis context, never customer feedback evidence."""
+    db = _mock_supabase_admin()
+    raw_texts = ["Dashboard is slow"]
+    signals = make_signals(1)
+    original = deepcopy(signals)
+    db.table.return_value.execute.return_value.data = {
+        "trigger": "manual",
+        "intake_summary": {"raw_texts": raw_texts, "source": "manual"},
+    }
+    synthesis = AsyncMock(return_value=make_pattern_report())
+    export = AsyncMock(return_value={"exports": {"markdown": "# Report"}})
+    mocks = {
+        "app.db.client.get_supabase_admin": MagicMock(return_value=db),
+        "app.services.agents.orchestrator._load_repo_context": AsyncMock(return_value=None),
+        "app.services.agents.orchestrator._load_business_context": AsyncMock(return_value=None),
+        "app.services.session_lifecycle.get_resolved_patterns":
+            AsyncMock(return_value=["Old login issue"]),
+        "app.services.agents.intake.extract_signals": AsyncMock(return_value=signals),
+        "app.services.agents.synthesis.synthesize_patterns": synthesis,
+        "app.services.agents.prioritizer.run_prioritizer":
+            AsyncMock(return_value={"opportunities": [{"title": "Speed up dashboard"}]}),
+        "app.services.agents.socratic.infer_strategic_context":
+            AsyncMock(return_value=make_four_q_answers(complete=True)),
+        "app.services.agents.spec_builder.build_spec": AsyncMock(return_value=make_spec()),
+        "app.services.agents.task_planner.run_task_planner":
+            AsyncMock(return_value={"tasks": []}),
+        "app.services.export.export_service.run_export": export,
+        "app.services.agents.memory.store_decision": AsyncMock(),
+        "app.services.actions.generator.generate_actions_for_session": AsyncMock(),
+    }
+    cms = _start_patches(mocks)
+    try:
+        from app.services.agents.orchestrator import run_pipeline
+        assert await run_pipeline("sess-1", "proj-1", "user-1", raw_texts) is True
+    finally:
+        _stop_patches(cms)
+
+    assert signals == original
+    synthesized = synthesis.await_args.args[0]
+    assert synthesized is not signals
+    assert synthesized[0]["raw_text"] == (
+        original[0]["raw_text"]
+        + "\n\n--- ALREADY RESOLVED (do not resurface these) ---\n- Old login issue"
+    )
+    saved = next(
+        call.args[0]["intake_summary"]
+        for call in db.table.return_value.update.call_args_list
+        if "intake_summary" in call.args[0]
+    )
+    assert saved == {"raw_texts": raw_texts, "source": "manual", "items": original}
+    assert export.await_args.args[0]["feedback_items"] == original
+    stages = [
+        call.args[0]["stage"]
+        for call in db.table.return_value.update.call_args_list
+        if "stage" in call.args[0]
+    ]
+    assert stages == [
+        "intake", "synthesis", "prioritization", "four_questions",
+        "spec_building", "task_planning", "task_planning", "done",
+    ]
 
 
 # ============================================================

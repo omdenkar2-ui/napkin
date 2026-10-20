@@ -1,6 +1,13 @@
 FROM python:3.11-slim AS base
 
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /uvx /bin/
+
 WORKDIR /app
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps (install first for layer caching)
-COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
 
 # App code
 COPY app/ app/

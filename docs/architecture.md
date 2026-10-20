@@ -14,7 +14,12 @@ intake → synthesis → prioritization → strategic context
 
 [`orchestrator.py`](../app/services/agents/orchestrator.py) executes the stages as an asynchronous function and persists progress to the session row. The frontend polls that row. Independent cluster analyses run concurrently; CPU embedding and KMeans work run outside the event loop.
 
-The main pipeline uses LangChain model wrappers and structured Pydantic output. It does not instantiate a LangGraph graph. Older state types and agent helpers in the repository do not imply that the active pipeline executes them.
+The main pipeline uses LangChain model wrappers and structured Pydantic output. It does not instantiate a LangGraph graph.
+
+The orchestrator owns stage order and outcomes. `pipeline_store.py` owns session
+persistence; `pipeline_context.py` owns enrichment and export payload construction.
+Resolved-pattern hints are applied to copies used by synthesis, so stored and
+exported feedback remains the original customer evidence.
 
 ## Where the behavior lives
 
@@ -30,7 +35,12 @@ The main pipeline uses LangChain model wrappers and structured Pydantic output. 
 | Exports | [`export_service.py`](../app/services/export/export_service.py) | Produces report artifacts from session output. |
 | Background work | [`main.py`](../app/main.py), [`auto_pipeline.py`](../app/services/workers/auto_pipeline.py) | APScheduler runs sync, automatic analysis, weekly briefs, and GitHub issue checks inside the API process. |
 
-`spec_qa.py` and the ReAct helper exist as separately tested components. The main orchestrator does not currently invoke a spec-QA retry loop. Celery and Redis appear in dependencies/configuration, but the current scheduler is APScheduler.
+`spec_qa.py` and the ReAct helper exist as separately tested components. The main orchestrator does not currently invoke a spec-QA retry loop. APScheduler is the only job runtime. The unused Celery bootstrap, Redis configuration, and disconnected legacy graph state/gates have been removed.
+
+Python dependencies are declared in the root `pyproject.toml` and resolved in
+`uv.lock`; the container consumes that same lock. All JavaScript dependencies
+belong to `frontend/package.json` and its lockfile. Run npm commands from
+`frontend/`; there is no separate root JavaScript application.
 
 ## Embeddings and clustering
 

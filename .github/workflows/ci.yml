@@ -39,6 +39,8 @@ jobs:
           cache-dependency-glob: uv.lock
       - name: Install locked dependencies
         run: uv sync --locked --extra dev --python 3.11
+      - name: Check Python syntax and undefined names
+        run: uv run --no-sync ruff check app tests --select E9,F63,F7,F82
       - name: Run backend tests with mocked services
         run: uv run --no-sync pytest -q
       - name: Audit locked production dependencies

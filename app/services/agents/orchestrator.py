@@ -15,9 +15,23 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Any
 
 import structlog
+
+from app.services.agents.pipeline_context import (
+    build_export_state as _build_export_state,
+    load_business_context as _load_business_context,
+    load_repo_context as _load_repo_context,
+    merge_contexts as _merge_contexts,
+    synthesis_signals,
+)
+from app.services.agents.pipeline_store import (
+    get_trigger, load_raw_feedback, mark_feedback_processed, save_intake,
+    update_session as _update,
+)
+
+# Preserve helper imports used by existing callers while sharing one writer.
+_save = _update
 
 logger = structlog.get_logger(__name__)
 
@@ -58,15 +72,7 @@ async def run_pipeline(
         _update(db, session_id, stage="intake", status="active")
         from app.services.agents.intake import extract_signals
         signals = await extract_signals(raw_texts)
-        # Preserve raw_texts (stored at session creation) while adding extracted signals
-        existing_intake = (
-            db.table("sessions").select("intake_summary").eq("id", session_id).single().execute()
-        ).data or {}
-        prev_intake = existing_intake.get("intake_summary") or {}
-        _save(db, session_id, intake_summary={
-            **prev_intake,
-            "items": signals,
-        })
+        save_intake(db, session_id, signals)
 
         if not signals:
             _update(db, session_id, stage="done", status="completed",
@@ -81,23 +87,8 @@ async def run_pipeline(
         _update(db, session_id, stage="synthesis")
         from app.services.agents.synthesis import synthesize_patterns
 
-        # Inject resolved patterns so synthesis doesn't resurface solved problems
-        resolved_labels = []
-        try:
-            from app.services.session_lifecycle import get_resolved_patterns
-            resolved_labels = await get_resolved_patterns(project_id)
-        except Exception:
-            pass
-
-        # If resolved patterns exist, inject them into each signal's context
-        if resolved_labels:
-            resolved_ctx = "\n\n--- ALREADY RESOLVED (do not resurface these) ---\n"
-            resolved_ctx += "\n".join(f"- {label}" for label in resolved_labels)
-            for signal in signals:
-                if isinstance(signal, dict) and signal.get("raw_text"):
-                    signal["raw_text"] = signal["raw_text"] + resolved_ctx
-
-        pattern_report = await synthesize_patterns(signals)
+        enriched_signals = await synthesis_signals(project_id, signals)
+        pattern_report = await synthesize_patterns(enriched_signals)
         _save(db, session_id, pattern_report=pattern_report)
 
         # ── Stage 3: Prioritization ─────────────────────────────
@@ -119,8 +110,7 @@ async def run_pipeline(
         # Manual mode: use basic socratic inference (pattern report + priorities only)
         _update(db, session_id, stage="four_questions")
 
-        session_row = db.table("sessions").select("trigger").eq("id", session_id).single().execute()
-        trigger_mode = (session_row.data or {}).get("trigger", "manual")
+        trigger_mode = get_trigger(db, session_id)
 
         if trigger_mode in ("auto", "webhook"):
             from app.services.agents.context_inferrer import infer_autopilot_context
@@ -200,21 +190,12 @@ async def run_pipeline_from_stored_feedback(project_id: str, session_id: str) ->
     from app.db.client import get_supabase_admin
     db = get_supabase_admin()
 
-    result = (
-        db.table("feedback_items")
-        .select("id, raw_text")
-        .eq("project_id", project_id)
-        .eq("status", "raw")
-        .order("created_at")
-        .limit(500)
-        .execute()
-    )
-
-    if not result.data:
+    items = load_raw_feedback(db, project_id)
+    if not items:
         return {"error": "No new feedback to process"}
 
     valid_items = [
-        item for item in result.data
+        item for item in items
         if isinstance(item.get("raw_text"), str) and item["raw_text"].strip()
     ]
     raw_texts = [item["raw_text"] for item in valid_items]
@@ -232,26 +213,9 @@ async def run_pipeline_from_stored_feedback(project_id: str, session_id: str) ->
         }
 
     # Mark items as processed and link to session
-    db.table("feedback_items").update({
-        "status": "processed",
-        "session_id": session_id,
-    }).in_("id", item_ids).execute()
+    mark_feedback_processed(db, session_id, item_ids)
 
     return {"processed": len(item_ids), "session_id": session_id}
-
-
-# ============================================================
-# DB helpers
-# ============================================================
-
-def _update(db, session_id: str, **fields: Any) -> None:
-    """Update session fields in Supabase."""
-    db.table("sessions").update(fields).eq("id", session_id).execute()
-
-
-def _save(db, session_id: str, **fields: Any) -> None:
-    """Save data fields to the session."""
-    db.table("sessions").update(fields).eq("id", session_id).execute()
 
 
 def _now() -> str:
@@ -260,66 +224,3 @@ def _now() -> str:
 
 def _msg(content: str) -> dict:
     return {"role": "assistant", "content": content, "timestamp": _now()}
-
-
-async def _load_repo_context(project_id: str) -> dict | None:
-    """Load GitHub repo context for the project (if connected)."""
-    try:
-        from app.services.github.connector import get_repo_context
-        return await get_repo_context(project_id)
-    except Exception:
-        return None
-
-
-async def _load_business_context(project_id: str) -> dict | None:
-    """Load website business context for the project (if scraped)."""
-    try:
-        from app.services.scrapers.website_scraper import get_business_context
-        return await get_business_context(project_id)
-    except Exception:
-        return None
-
-
-def _merge_contexts(repo_context: dict | None, business_context: dict | None) -> dict:
-    """Merge repo + business context into a single enrichment dict for spec builder."""
-    merged = {}
-    if repo_context:
-        merged["readme"] = repo_context.get("readme_content", "")
-        merged["stack_guess"] = repo_context.get("stack")
-        merged["routes_text"] = str(repo_context.get("routes", ""))
-        merged["schema_text"] = repo_context.get("schema_snapshot", "")
-    if business_context:
-        merged["business_context"] = {
-            "product_name": business_context.get("product_name", ""),
-            "core_value_prop": business_context.get("core_value_prop", ""),
-            "target_customer": business_context.get("target_customer", ""),
-            "key_features": business_context.get("key_features", []),
-            "pricing_model": business_context.get("pricing_model", ""),
-            "competitors": business_context.get("competitors", []),
-            "tone": business_context.get("tone", ""),
-        }
-    return merged
-
-
-def _build_export_state(
-    session_id: str,
-    signals: list[dict],
-    pattern_report: dict,
-    priorities: dict,
-    spec: dict,
-    four_q: dict,
-    task_plan: dict,
-) -> dict:
-    """Build the state dict that export_service expects."""
-    return {
-        "session_id": session_id,
-        "feedback_items": signals,
-        "pattern_report": pattern_report,
-        "prioritization_result": priorities,
-        "spec_object": spec,
-        "four_q_answers": four_q,
-        "sprint_plan": task_plan,
-        "stage_history": [],
-        "repo_files": {},
-        "repo_context": None,
-    }
